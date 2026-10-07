@@ -1,34 +1,53 @@
-# beta-client — parte do puunish
+# beta-client (Void Client) — parte do puunish
 
-Nossa contribuição pro client/launcher de **MCPE 0.15.10**. Cada dev faz a sua parte na sua branch (`puunish`), merge no fim.
+Client **legítimo** estilo Lunar/Badlion pra **Minecraft PE 0.15.10** — UI custom + HUD +
+QoL + cosméticos, **sem cheat**. O app carrega o MCPE 0.15.10 **instalado** no device
+(`loadFromPackage`) e desenha uma interface própria (overlay GLES2, dark + roxo, fonte
+JetBrains Mono) por cima, com um **sistema de módulos** pra adicionar features.
 
-## Escopo (nossa parte)
-Client **legítimo** estilo Lunar/Badlion — **UI custom + HUD + QoL + cosmetics**, **sem cheat**. Foco inicial:
-- **Backend nativo 32-bit** (jogo roda nativo via loader estilo self-contained; hooks por Cydia Substrate).
-- **Interface custom** nas telas principais (menu, opções, pause, chat) — desenhar por cima + religar as ações no jogo.
-- **Feature 1 — scroll no chat** (backport da 0.16, que a 0.15 não tem).
+## Como contribuir (devs)
+As features são **módulos**. Você escreve **um arquivo** `.cpp`, builda, testa e abre um PR.
 
-## Princípios
-- **FPS-neutro:** o client NÃO pode custar FPS. Nada roda na render thread no jogo normal; hooks só agem quando necessário (ex.: o hook do chat só com o chat aberto).
-- **Dual-backend (futuro):** 32-bit = native-load; 64-bit-only = runtime próprio; W10 = depois. ~90% do código (UI/HUD/features) é compartilhado; só a casca (render/input/hook/offsets) muda por plataforma.
-- **Sem binário do Mojang no repo.** Cada um traz o `libminecraftpe.so` 0.15.10 por conta própria (ver `.gitignore`).
+- **Como escrever um módulo (API):** [`DOCUMENTATION.md`](DOCUMENTATION.md)
+- **Fluxo (clonar → criar → buildar → testar → PR):** [`CONTRIBUTING.md`](CONTRIBUTING.md)
+- **Ponto de partida:** copie [`native/jni/modules/_template.cpp`](native/jni/modules/_template.cpp)
+
+```powershell
+# 1. cria seu módulo a partir do template
+copy native\jni\modules\_template.cpp native\jni\modules\meu_modulo.cpp
+# 2. builda + instala no device (precisa NDK r27c + MCPE 0.15.10 instalado no celular)
+.\build.ps1 -Install -Device <ip>:5555
+# 3. abre o Void Client -> Launch -> MODULOS  (seu card aparece sozinho)
+```
+
+O build pega **todo** `modules/*.cpp` automaticamente (menos `_*`); o `VOID_MODULE(...)`
+registra o módulo e o card + painel de config aparecem sem mexer em mais nada.
 
 ## Estrutura
 ```
-native/jni/launcher.cpp   backend nativo: harness (JNI_OnLoad -> Substrate -> hook por nome) + features
-build_test.ps1            compila + empacota o APK de teste (paths locais; ajustar)
-re/                       notas de RE (offsets) — NAO versionar binario do Mojang
+native/jni/
+  void_sdk.h         API do autor de módulo (inclua nos seus módulos)
+  launcher.cpp       o client + framework de módulos  (NÃO mexer no PR)
+  font_blob.h        atlas da fonte
+  modules/
+    _template.cpp    copie este (arquivos _* são ignorados no build)
+    fps_counter.cpp  exemplo: HUD de FPS
+    fullbright.cpp   exemplo: gamma alto (acesso raw a offset)
+voidclient/          skeleton do APK (empacotado pelo apktool)
+build.ps1            build de 1 comando (compila + empacota + assina; -Install instala)
+DOCUMENTATION.md     a API dos módulos
+CONTRIBUTING.md      o fluxo de contribuição + pré-requisitos
 ```
 
-## Build (resumo)
-NDK r27c clang (armeabi-v7a), JDK 21 p/ assinar. Precisa de: `libminecraftpe.so` 0.15.10 + Substrate, um APK-base que carregue a lib do client via `System.loadLibrary`.
-```
-clang++ --target=armv7a-linux-androideabi21 -fPIC -shared -O2 -s -nostdlib++ -fno-exceptions -fno-rtti -o liblauncher.so native/jni/launcher.cpp -llog -ldl
-```
+## Princípios
+- **Legítimo, não cheat.** Features = HUD, visual, QoL, cosméticos. **Nada** de
+  reach/hitbox/anti-knockback.
+- **FPS-neutro.** O overlay desenha por frame só quando precisa; nada pesado na render
+  thread do jogo normal.
+- **O framework é do mantenedor.** Módulos vão em `modules/`; mudança no `launcher.cpp`/
+  `void_sdk.h` (ex.: tipo de setting novo) combina antes (seção 9 da doc).
 
-## Status (2026-10-05) — "Void Client"
-- **App Void Client funcionando no A71:** carrega o MCPE 0.15.10 instalado (`loadFromPackage`) e desenha um **menu lateral 100% custom** (dark+roxo, fonte própria JetBrains Mono) por cima, substituindo o menu da Mojang. Gate (só no menu) + input (botões respondem) + toggle, sem crash. Projeto em `voidclient/`.
-- **Overlay GLES2 próprio** (shader/fonte/estilo nossos) via hook no `swapBuffers` do jogo, com save/restore de estado GL.
-- Docs: `VOID_MENU_BUILD.md` (as-built), `VOID_OVERLAY_IMPL.md` (spec), `HOST_ARCH.md`, `NATIVE_LOAD.md`, `INTERFACES_RE.md`.
-- Scroll no chat: **parkado** (`re/CHAT_SCROLL_RE.md`).
-- **Próximo:** religar os botões nas ações reais (Jogar/Mundos/Opções via navegação do jogo) + input in-game seguro. Ver `VOID_MENU_BUILD.md` §5.
+## Status
+- Overlay GLES2 próprio + menu custom + telas (opções/mundos/servidores/pause/loading) +
+  **sistema de módulos** (tela MODULOS + bolha in-game + config + persistência) — rodando
+  no A71. Backend 32-bit native-load; 64-bit (emu32)/W10 = futuro.
