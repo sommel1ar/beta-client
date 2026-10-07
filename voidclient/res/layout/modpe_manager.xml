@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<android.support.design.widget.CoordinatorLayout android:id="@id/main_content" android:layout_width="fill_parent" android:layout_height="fill_parent"
+  xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+    <ListView android:id="@id/modpeScripts" android:layout_width="fill_parent" android:layout_height="wrap_content" />
+    <android.support.design.widget.FloatingActionButton android:layout_gravity="end|bottom|center" android:id="@id/modpeAdd" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_margin="16.0dip" android:src="@drawable/ic_add_white_24dp1" app:fabSize="normal" />
+    <TextView android:textAppearance="?android:textAppearanceSmall" android:gravity="center" android:id="@id/modpeNoScripts" android:layout_width="fill_parent" android:layout_height="fill_parent" android:text="@string/modpe_no_scripts" />
+</android.support.design.widget.CoordinatorLayout>

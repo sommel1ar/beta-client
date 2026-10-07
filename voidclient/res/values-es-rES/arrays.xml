@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string-array name="pref_pixel_scale_titles">
+        <item>Default</item>
+        <item>Escala 1:1</item>
+        <item>Escala 2:1</item>
+        <item>Escala 3:1</item>
+        <item>Escala 4:1</item>
+        <item>Escala 5:1</item>
+        <item>Escala 6:1</item>
+        <item>Escala 7:1</item>
+        <item>Escala 8:1</item>
+    </string-array>
+</resources>

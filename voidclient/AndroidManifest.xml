@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="utf-8" standalone="no"?><manifest xmlns:android="http://schemas.android.com/apk/res/android" package="io.mrarm.mctoolbox" platformBuildVersionCode="23" platformBuildVersionName="6.0-2438415">
+    <uses-permission android:name="net.zhuoweizhang.mcpelauncher.ADDON"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.VIBRATE"/>
+    <application android:allowBackup="true" android:debuggable="true" android:icon="@mipmap/ic_launcher" android:label="Void Client" android:requestLegacyExternalStorage="true" android:supportsRtl="false" android:theme="@style/AppTheme">
+        <activity android:label="Void Client" android:name="com.voidclient.SelectorActivity" android:theme="@style/AppTheme.Dark">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN"/>
+                <category android:name="android.intent.category.LAUNCHER"/>
+            </intent-filter>
+        </activity>
+        <activity android:exported="true" android:label="Void Client" android:name="com.voidclient.LoaderActivity" android:screenOrientation="sensorLandscape" android:theme="@style/AppTheme.Fullscreen">
+            <meta-data android:name="android.app.lib_name" android:value="mcpelauncher-utils"/>
+        </activity>
+        <activity android:name="io.mrarm.mcpelauncher.ErrorActivity" android:theme="@style/ErrorStyle"/>
+        <activity android:label="@string/title_activity_settings" android:name="io.mrarm.mcpelauncher.SettingsActivity" android:screenOrientation="sensorLandscape"/>
+        <activity android:configChanges="orientation" android:exported="true" android:label="@string/title_activity_file_browser" android:name="io.mrarm.mcpelauncher.FileBrowserActivity" android:theme="@style/AppTheme.NoActionBar"/>
+        <activity android:name="io.mrarm.mcpelauncher.XboxLoginActivity"/>
+        <activity android:configChanges="keyboard|keyboardHidden|orientation|screenLayout|screenSize|smallestScreenSize|uiMode" android:name="com.google.android.gms.ads.AdActivity" android:theme="@android:style/Theme.Translucent"/>
+        <activity android:name="com.google.android.gms.ads.purchase.InAppPurchaseActivity" android:theme="@style/Theme.IAPTheme"/>
+        <meta-data android:name="com.google.android.gms.version" android:value="@integer/google_play_services_version"/>
+    </application>
+</manifest>

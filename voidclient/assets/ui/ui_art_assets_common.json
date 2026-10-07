@@ -1,0 +1,150 @@
+/********************************************************
++*   (c) Mojang. All rights reserved                       *
++*   (c) Microsoft. All rights reserved.                   *
++*********************************************************/
+
+{
+  "namespace": "common_art",
+
+
+  "splash_text": {
+    "type": "custom",
+    "renderer": "splash_text_renderer",
+    "size": [ 0.1, 0.1 ],
+    "layer": 2,
+    "anchor_from": "bottom_right",
+    "anchor_to": "bottom_right"
+  },
+
+  "title_panel_pocket": {
+    "type": "panel",
+    "offset": [ 0, "10%" ],
+    "anchor_from": "top_middle",
+    "anchor_to": "top_middle",
+    "size": [ "100%", "12.5%x" ],
+    "controls": [
+      {
+        "title_image": {
+          "type": "image",
+          "layer": 1,
+          "anchor_from": "top_middle",
+          "anchor_to": "top_middle",
+          "texture": "gui/title.png",
+          "uv": [ 0, 0 ],
+          "uv_size": [ 512, 64 ]
+        }
+      },
+      {
+        "@splash_text": {
+          "offset": [ "-28%", "-4%x" ]
+        }
+      }
+    ]
+  },
+
+  "title_panel_win10": {
+    "type": "panel",
+    "size": [ "55%", "10.6%x" ],
+    "offset": [ 0, "10%" ],
+    "anchor_from": "top_middle",
+    "anchor_to": "top_middle",
+    "controls": [
+      {
+        "title_image": {
+          "type": "image",
+          "layer": 1,
+          "texture": "gui/titleOriginal.png",
+          "uv": [ 0, 0 ],
+          "uv_size": [ 1936, 375 ]
+        }
+      },
+      {
+        "@splash_text": {
+          "offset": [ 0, "-6.25%x" ]
+        }
+      }
+    ]
+  },
+
+  "title_panel_edu": {
+    "type": "panel",
+    "size": [ "55%", "13.35%x" ],
+    "offset": [ 0, "10%" ],
+    "anchor_from": "top_middle",
+    "anchor_to": "top_middle",
+    "controls": [
+      {
+        "title_image": {
+          "type": "image",
+          "layer": 1,
+          "texture": "gui/titleEdu.png",
+          "uv": [ 0, 0 ],
+          "uv_size": [ 1938, 472 ]
+        }
+      },
+      {
+        "@splash_text": {
+          "offset": [ "-3.5%", "-9.25%x" ]
+        }
+      }
+    ]
+  },
+
+  "title_panel_vr": {
+    "type": "panel",
+    "size": [ "100%", "12.5%x" ],
+    "offset": [ 0, "10%" ],
+    "anchor_from": "top_middle",
+    "anchor_to": "top_middle",
+    "controls": [
+      {
+        "title_image": {
+          "type": "image",
+          "layer": 1,
+          "anchor_from": "top_middle",
+          "anchor_to": "top_middle",
+          "texture": "gui/titleVR.png",
+          "uv": [ 0, 0 ],
+          "uv_size": [ 512, 64 ]
+        }
+      },
+      {
+        "@splash_text": {
+          "offset": [ "-28%", "-4%x" ]
+        }
+      }
+    ]
+  },
+
+
+  "title_panel_content": {
+    "type": "panel",
+    "variables": [
+      {
+        "requires": "$win10_edition",
+        "$title_panel": "title_panel_win10"
+      },
+      {
+        "requires": "$osx_edition",
+        "$title_panel": "title_panel_win10"
+      },
+      {
+        "requires": "$education_edition",
+        "$title_panel": "title_panel_edu"
+      },
+      {
+        "requires": "$pocket_edition",
+        "$title_panel": "title_panel_pocket"
+      },
+      {
+        "requires": "$gear_vr",
+        "$title_panel": "title_panel_vr"
+      }
+    ],
+    "controls": [
+      {
+        "@$title_panel": { }
+      }
+    ]
+  }
+}

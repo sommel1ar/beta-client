@@ -1,0 +1,22 @@
+# === Artefatos de build (NAO versionar) ===
+native/out/
+*.apk
+VoidClient.apk
+
+# saida do apktool
+voidclient/build/
+voidclient/dist/
+
+# a libmodclient.so e gerada pelo build.ps1 e copiada pra ca; nao versionar
+voidclient/lib/armeabi-v7a/libmodclient.so
+
+# x86 = cruft do APK base; os devices alvo sao ARM (armeabi-v7a)
+voidclient/lib/x86/
+
+# === O que FICA no repo (referencia; o resto da pasta _launcher/ NAO entra) ===
+# native/jni/void_sdk.h
+# native/jni/launcher.cpp
+# native/jni/font_blob.h
+# native/jni/modules/        (fps_counter.cpp, fullbright.cpp, _template.cpp)
+# voidclient/                (skeleton do APK; libs do loader)
+# build.ps1  debug.keystore  DOCUMENTATION.md  CONTRIBUTING.md  README.md

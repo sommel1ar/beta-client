@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<PreferenceScreen
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <SwitchPreference android:title="@string/pref_title_disable_warnings" android:key="disable_startup_warnings" android:summary="@string/pref_description_disable_warnings" android:defaultValue="false" />
+    <ListPreference android:entries="@array/pref_pixel_scale_titles" android:title="@string/pref_title_pixel_scale" android:key="pixel_scale" android:defaultValue="-1" android:positiveButtonText="@null" android:negativeButtonText="@null" android:entryValues="@array/pref_pixel_scale_values" />
+</PreferenceScreen>

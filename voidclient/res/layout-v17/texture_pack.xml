@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<RelativeLayout android:id="@id/texturePackContainer" android:padding="12.0dip" android:layout_width="fill_parent" android:layout_height="wrap_content"
+  xmlns:android="http://schemas.android.com/apk/res/android">
+    <ImageView android:id="@id/packIcon" android:layout_width="64.0dip" android:layout_height="64.0dip" android:layout_toRightOf="@id/dragHandle" android:layout_alignParentTop="true" android:contentDescription="@string/description_texturepack_image_icon" android:layout_toEndOf="@id/dragHandle" />
+    <TextView android:textAppearance="?android:textAppearanceMedium" android:id="@id/packName" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="8.0dip" android:text="@string/texture_pack_placeholder_name" android:layout_toRightOf="@id/packIcon" android:layout_alignParentTop="true" android:layout_marginStart="8.0dip" android:layout_toEndOf="@id/packIcon" />
+    <TextView android:textAppearance="?android:textAppearanceSmall" android:id="@id/packDesc" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="8.0dip" android:text="@string/texture_pack_placeholder_desc" android:layout_below="@id/packName" android:layout_alignLeft="@id/packName" android:layout_alignStart="@id/packName" />
+    <ImageView android:id="@id/dragHandle" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginTop="12.0dip" android:src="@drawable/ic_drag_vertical_black_36dp" android:layout_alignParentLeft="true" android:layout_alignParentTop="true" android:layout_alignParentStart="true" />
+</RelativeLayout>

@@ -1,0 +1,170 @@
+{
+  "namespace": "survey",
+
+  "content_label": {
+    "size": [ "100%", 10 ],
+    "type": "label",
+    "text": "survey.label",
+    "color": [ 1, 1, 1 ],
+    "alignment": "top_left"
+  },
+
+  "title_label": {
+    "type": "label",
+    "text": "survey.title",
+    "color": [ 1, 1, 1 ],
+    "alignment": "center"
+  },
+
+  "survey_question_label": {
+    "type": "label",
+    "size": [ "100% - 20px", 20 ],
+    "offset": [ 20, 2 ],
+    "wrap": true,    
+    "alignment": "left_middle",
+    "anchor_from": "left_middle",
+    "anchor_to": "left_middle",
+    "color": [ 1, 1, 1 ],
+    "text": "#survey_question",
+    "bindings": [
+      {
+        "binding_name": "#survey_question",        
+        "binding_type": "collection",
+        "binding_collection_name": "survey_collection"
+      }
+    ]
+  },
+
+  "checkbox_toggle@common.checkbox": {
+    "anchor_from": "left_middle",
+    "anchor_to": "left_middle",
+    "size": [ 20, 20 ],    
+    "$toggle_binding_type": "collection",    
+    "$toggle_grid_collection_name": "survey_collection",
+    "$toggle_name": "#survey_toggle"
+  },
+
+  "survey_grid": {
+    "type": "grid",
+    "size": [ "100%", "default" ],
+    "grid_item_template": "survey.survey_grid_item",
+    "grid_dimension_binding": "#survey_grid_dimension",
+    "$collection_binding_name": "survey_collection",
+    "collection_name": "survey_collection",
+    "anchor_to": "top_left",
+    "anchor_from": "top_left",
+    "bindings": [
+      {
+        "binding_name": "#survey_grid_dimension"
+      }
+    ]
+  },
+
+  "survey_grid_item": {
+    "type": "panel",
+    //"orientation": "horizontal",
+    "size": [ "100%", 20 ],
+    "controls": [
+      { "@checkbox_toggle": { } },
+      { "@survey_question_label": { } }
+    ]
+  },
+
+  "send_feedback_button@realms_common.new_ui_button": {
+    "$button_text": "survey.feedbackButton",
+    "button_mappings": [
+      {
+        "from_button_id": "button.menu_select",
+        "to_button_id": "button.send_feedback",
+        "mapping_type": "pressed"
+      },
+      {
+        "from_button_id": "button.menu_ok",
+        "to_button_id": "button.send_feedback",
+        "mapping_type": "focused"
+      }
+    ]
+  },
+
+  ////////////////
+  // Dialog
+  ////////////////
+
+  "survey_screen@common.base_screen": {
+    "button_mappings": [
+      {
+        "from_button_id": "button.menu_exit",
+        "to_button_id": "button.menu_exit",
+        "mapping_type": "global"
+      },
+      {
+        "from_button_id": "button.menu_cancel",
+        "to_button_id": "button.menu_exit",
+        "mapping_type": "global"
+      },
+      {
+        "from_button_id": "button.menu_up",
+        "to_button_id": "button.menu_up",
+        "mapping_type": "global",
+        "scope": "view"
+      },
+      {
+        "from_button_id": "button.menu_down",
+        "to_button_id": "button.menu_down",
+        "mapping_type": "global",
+        "scope": "view"
+      },
+      {
+        "from_button_id": "button.menu_left",
+        "to_button_id": "button.menu_left",
+        "mapping_type": "global",
+        "scope": "view"
+      },
+      {
+        "from_button_id": "button.menu_right",
+        "to_button_id": "button.menu_right",
+        "mapping_type": "global",
+        "scope": "view"
+      }
+    ],
+
+    "$screen_content": "survey_dialog"
+  },
+
+  "survey_dialog@realms_common.main_panel_short_bottom": {
+    "size": "$upsell_screen_size",
+    "$child_control": "survey.survey_panel_content",
+    "$text_name": "survey.title",
+    "$button_control": "survey.send_feedback_button"
+  },
+
+  "survey_panel_content@common.scrolling_panel": {
+    "size": [ "100% - 4px", "100%" ],
+    "offset": [ 2, 0 ],
+    "anchor_to": "top_left",
+    "anchor_from": "top_left",
+    "$show_background": false,
+    "$scroll_track_size": [ 5, "100% - 4px" ],
+    "$scroll_track_offset|default": [ 0, 2 ],
+    "$scrolling_content": "survey.content_panel"
+  },
+
+  "content_panel": {
+    "type": "stack_panel",
+    "anchor_from": "top_left",
+    "anchor_to": "top_left",
+    "size": [ "100%", "100%c" ],
+    "offset": [ 0, 2 ],
+    "controls": [
+      { "@content_label": { } },
+      { "@survey_grid": { } },
+      {
+        "empty_panel": {
+          "type": "panel",
+          "size": [ 0, 2 ]
+        }
+      }
+    ]
+  }
+
+}

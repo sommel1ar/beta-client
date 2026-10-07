@@ -1,0 +1,46 @@
+version: 2.9.3
+apkFileName: MCPE-0.15.10-v2.9-reachcmd.apk
+isFrameworkApk: false
+usesFramework:
+  ids:
+  - 1
+  tag: null
+sdkInfo:
+  minSdkVersion: 15
+  targetSdkVersion: 23
+packageInfo:
+  forcedPackageId: 127
+  renameManifestPackage: null
+versionInfo:
+  versionCode: 840151000
+  versionName: 0.15.10.0
+resourcesAreCompressed: false
+sharedLibrary: false
+sparseResources: false
+unknownFiles:
+  google/protobuf/any.proto: 8
+  google/protobuf/api.proto: 8
+  google/protobuf/descriptor.proto: 8
+  google/protobuf/duration.proto: 8
+  google/protobuf/empty.proto: 8
+  google/protobuf/field_mask.proto: 8
+  google/protobuf/source_context.proto: 8
+  google/protobuf/struct.proto: 8
+  google/protobuf/timestamp.proto: 8
+  google/protobuf/type.proto: 8
+  google/protobuf/wrappers.proto: 8
+  google/protobuf/compiler/plugin.proto: 8
+  org/mozilla/javascript/ES6Iterator.java.orig: 8
+  org/mozilla/javascript/NativeString.java.orig: 8
+  org/mozilla/javascript/Node.java.orig: 8
+  org/mozilla/javascript/Parser.java.orig: 8
+  org/mozilla/javascript/Token.java.orig: 8
+  org/mozilla/javascript/resources/Messages.properties: 8
+  org/mozilla/javascript/resources/Messages_fr.properties: 8
+  org/mozilla/javascript/tools/debugger/build.xml: 8
+  org/mozilla/javascript/tools/debugger/test.js: 8
+  org/mozilla/javascript/tools/idswitch/README: 8
+  org/mozilla/javascript/tools/resources/Messages.properties: 8
+doNotCompress:
+- resources.arsc
+- png
