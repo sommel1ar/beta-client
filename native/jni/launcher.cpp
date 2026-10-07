@@ -12,6 +12,7 @@
 #include <GLES2/gl2.h>
 #include <EGL/egl.h>
 #include "font_blob.h"
+#include "icons_blob.h"
 #include "void_sdk.h"
 
 #define LOG(...) __android_log_print(ANDROID_LOG_INFO, "VoidClient", __VA_ARGS__)
@@ -143,9 +144,14 @@ typedef struct { float x, y; float u, v; unsigned char r, g, b, a; } UIVert;
 #define MAX_V 8192
 static UIVert g_vSolid[MAX_V]; static int g_nSolid;
 static UIVert g_vText[MAX_V]; static int g_nText;
+static UIVert g_vIcon[MAX_V]; static int g_nIcon;
 
-static GLuint g_prog, g_vbo, g_white, g_font;
+static GLuint g_prog, g_vbo, g_white, g_font, g_iconTex;
 static GLint g_uInvScreen, g_uTex;
+static GLuint g_blurProg, g_capTex;
+static GLint g_uBlurInv, g_uBlurTex, g_uBlurTexel;
+static UIVert g_vQuad[6];
+static GLuint g_loFbo, g_loTex; static int g_loW, g_loH;
 
 typedef struct { unsigned short x, y, w, h; float xoff, yoff, xadvance; } Glyph;
 typedef struct {
@@ -159,6 +165,13 @@ typedef struct {
 } VcFont;
 static VcFont g_fontInfo;
 
+typedef struct { unsigned short x, y, w, h; } IconRect;
+typedef struct { int atlas_w, atlas_h, count; const IconRect* rects; } VcIcons;
+static VcIcons g_iconInfo;
+#define IC_GEAR 0
+#define IC_GLOBE 1
+#define IC_DOOR 2
+
 static const char* VS =
     "attribute vec2 aPos; attribute vec2 aUV; attribute vec4 aColor;"
     "uniform vec2 uInvScreen;"
@@ -171,6 +184,23 @@ static const char* FS =
     "uniform sampler2D uTex;"
     "varying vec2 vUV; varying vec4 vColor;"
     "void main(){ gl_FragColor = texture2D(uTex,vUV) * vColor; }";
+
+// blur 13-tap (frosted glass) do framebuffer capturado
+static const char* BLUR_FS =
+    "precision mediump float;"
+    "uniform sampler2D uTex; uniform vec2 uTexel;"
+    "varying vec2 vUV; varying vec4 vColor;"
+    "void main(){"
+    "  vec2 s = uTexel * 4.0;"
+    "  vec3 c = texture2D(uTex,vUV).rgb * 0.14;"
+    "  c += (texture2D(uTex,vUV+vec2(s.x,0.0)).rgb + texture2D(uTex,vUV-vec2(s.x,0.0)).rgb) * 0.10;"
+    "  c += (texture2D(uTex,vUV+vec2(0.0,s.y)).rgb + texture2D(uTex,vUV-vec2(0.0,s.y)).rgb) * 0.10;"
+    "  c += (texture2D(uTex,vUV+s).rgb + texture2D(uTex,vUV-s).rgb) * 0.07;"
+    "  c += (texture2D(uTex,vUV+vec2(s.x,-s.y)).rgb + texture2D(uTex,vUV-vec2(s.x,-s.y)).rgb) * 0.07;"
+    "  c += (texture2D(uTex,vUV+vec2(s.x*2.0,0.0)).rgb + texture2D(uTex,vUV-vec2(s.x*2.0,0.0)).rgb) * 0.05;"
+    "  c += (texture2D(uTex,vUV+vec2(0.0,s.y*2.0)).rgb + texture2D(uTex,vUV-vec2(0.0,s.y*2.0)).rgb) * 0.04;"
+    "  gl_FragColor = vec4(c, 1.0);"
+    "}";
 
 typedef struct {
     GLint prog, arrBuf, elemBuf, activeTex, texU0, vp[4], scBox[4];
@@ -193,10 +223,10 @@ static GLuint compile_sh(GLenum t, const char* s) {
     return sh;
 }
 
-static GLuint link_prog() {
+static GLuint link_prog_fs(const char* fs) {
     GLuint p = glCreateProgram();
     GLuint v = compile_sh(GL_VERTEX_SHADER, VS);
-    GLuint f = compile_sh(GL_FRAGMENT_SHADER, FS);
+    GLuint f = compile_sh(GL_FRAGMENT_SHADER, fs);
     glAttachShader(p, v); glAttachShader(p, f);
     glBindAttribLocation(p, 0, "aPos");
     glBindAttribLocation(p, 1, "aUV");
@@ -250,16 +280,52 @@ static GLuint vc_font_init() {
     return t;
 }
 
+static GLuint vc_icons_init() {
+    const unsigned char* p = icons_blob;
+    if (memcmp(p, "VCI1", 4) != 0) { LOG("icons magic ruim"); return 0; }
+    unsigned short aw, ah, n;
+    memcpy(&aw, p + 4, 2); memcpy(&ah, p + 6, 2); memcpy(&n, p + 8, 2);
+    const IconRect* rects = (const IconRect*)(p + 10);
+    const unsigned char* cov = (const unsigned char*)(rects + n);
+    unsigned char* la = (unsigned char*)malloc((size_t)aw * ah * 2);
+    for (int i = 0; i < aw * ah; i++) { la[2 * i] = 255; la[2 * i + 1] = cov[i]; }
+    GLuint t;
+    glGenTextures(1, &t);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, t);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glPixelStorei(GL_UNPACK_ALIGNMENT, 1);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_LUMINANCE_ALPHA, aw, ah, 0, GL_LUMINANCE_ALPHA, GL_UNSIGNED_BYTE, la);
+    free(la);
+    g_iconInfo.atlas_w = aw; g_iconInfo.atlas_h = ah; g_iconInfo.count = n; g_iconInfo.rects = rects;
+    return t;
+}
+
 static void overlay_init_gl() {
-    g_prog = link_prog();
+    g_prog = link_prog_fs(FS);
     g_uInvScreen = glGetUniformLocation(g_prog, "uInvScreen");
     g_uTex = glGetUniformLocation(g_prog, "uTex");
+    g_blurProg = link_prog_fs(BLUR_FS);
+    g_uBlurInv = glGetUniformLocation(g_blurProg, "uInvScreen");
+    g_uBlurTex = glGetUniformLocation(g_blurProg, "uTex");
+    g_uBlurTexel = glGetUniformLocation(g_blurProg, "uTexel");
     glGenBuffers(1, &g_vbo);
     const unsigned char wht[4] = { 255, 255, 255, 255 };
     g_white = make_tex_rgba(wht, 1, 1);
     g_font = vc_font_init();
+    g_iconTex = vc_icons_init();
+    glGenTextures(1, &g_capTex);
+    glBindTexture(GL_TEXTURE_2D, g_capTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    g_loFbo = 0; g_loTex = 0; g_loW = 0; g_loH = 0;  // forca recriar o FBO lo-res no contexto novo
     g_glReady = 1;
-    LOG("overlay GL pronto prog=%u vbo=%u white=%u font=%u", g_prog, g_vbo, g_white, g_font);
+    LOG("overlay GL pronto prog=%u vbo=%u white=%u font=%u icons=%u", g_prog, g_vbo, g_white, g_font, g_iconTex);
 }
 
 static void push(UIVert* buf, int* n, float x, float y, float w, float h,
@@ -273,16 +339,33 @@ static void push(UIVert* buf, int* n, float x, float y, float w, float h,
     *n += 6;
 }
 
+static void draw_icon(int idx, float x, float y, float sz, unsigned argb) {
+    if (!g_iconTex || idx < 0 || idx >= g_iconInfo.count) return;
+    const IconRect* r = &g_iconInfo.rects[idx];
+    float iw = 1.0f / g_iconInfo.atlas_w, ih = 1.0f / g_iconInfo.atlas_h;
+    push(g_vIcon, &g_nIcon, x, y, sz, sz, r->x * iw, r->y * ih, (r->x + r->w) * iw, (r->y + r->h) * ih, argb);
+}
+
 static void draw_rect(float x, float y, float w, float h, unsigned argb) {
     push(g_vSolid, &g_nSolid, x, y, w, h, .5f, .5f, .5f, .5f, argb);
+}
+
+// decodifica 1 codepoint UTF-8 e avanca o ponteiro. 3/4 bytes (CJK/etc) -> 0xFFFFFFFF (fora da fonte).
+static inline unsigned vc_u8(const unsigned char** pp) {
+    const unsigned char* p = *pp; unsigned cp = *p;
+    if (cp < 0x80) { *pp = p + 1; return cp; }
+    if ((cp & 0xE0) == 0xC0 && p[1]) { *pp = p + 2; return ((cp & 0x1Fu) << 6) | (p[1] & 0x3Fu); }
+    if ((cp & 0xF0) == 0xE0 && p[1] && p[2]) { *pp = p + 3; return 0xFFFFFFFFu; }
+    if ((cp & 0xF8) == 0xF0 && p[1] && p[2] && p[3]) { *pp = p + 4; return 0xFFFFFFFFu; }
+    *pp = p + 1; return 0xFFFFFFFFu;
 }
 
 static void draw_text(float x, float y, const char* s, float px, unsigned argb) {
     const VcFont* f = &g_fontInfo;
     if (!g_font) return;
     float sc = px / f->bake_px, iw = 1.0f / f->atlas_w, ih = 1.0f / f->atlas_h, penx = x;
-    for (const unsigned char* p = (const unsigned char*)s; *p; ++p) {
-        unsigned cp = *p;
+    for (const unsigned char* p = (const unsigned char*)s; *p; ) {
+        unsigned cp = vc_u8(&p);
         if (cp < (unsigned)f->first_cp || cp >= (unsigned)(f->first_cp + f->count)) continue;
         const Glyph* g = &f->glyphs[cp - f->first_cp];
         if (g->w) {
@@ -297,8 +380,8 @@ static void draw_text(float x, float y, const char* s, float px, unsigned argb) 
 static float text_width(const char* s, float px) {
     const VcFont* f = &g_fontInfo;
     float w = 0, sc = px / f->bake_px;
-    for (const unsigned char* p = (const unsigned char*)s; *p; ++p) {
-        unsigned cp = *p;
+    for (const unsigned char* p = (const unsigned char*)s; *p; ) {
+        unsigned cp = vc_u8(&p);
         if (cp < (unsigned)f->first_cp || cp >= (unsigned)(f->first_cp + f->count)) continue;
         w += f->glyphs[cp - f->first_cp].xadvance * sc;
     }
@@ -306,6 +389,18 @@ static float text_width(const char* s, float px) {
 }
 
 static void draw_text_c(float cx, float y, const char* s, float px, unsigned argb) {
+    draw_text(cx - text_width(s, px) * 0.5f, y, s, px, argb);
+}
+
+// desenha encolhendo a fonte se o texto nao couber em maxW (traducoes variam de tamanho).
+static void draw_text_fit(float x, float y, const char* s, float px, float maxW, unsigned argb) {
+    float w = text_width(s, px);
+    if (w > maxW && w > 0.0f) px *= maxW / w;
+    draw_text(x, y, s, px, argb);
+}
+static void draw_text_fit_c(float cx, float y, const char* s, float px, float maxW, unsigned argb) {
+    float w = text_width(s, px);
+    if (w > maxW && w > 0.0f) px *= maxW / w;
     draw_text(cx - text_width(s, px) * 0.5f, y, s, px, argb);
 }
 
@@ -341,8 +436,16 @@ static void draw_text_mc(float x, float y, const char* s, float px, unsigned def
     if (rl) { run[rl] = 0; draw_text(cx, y, run, px, col); }
 }
 
-static const char* g_menu[4] = { "SINGLEPLAYER", "MULTIPLAYER", "OPTIONS", "MODULOS" };
-#define N_MENU 4
+static const char* vc_tr(const char* key);
+static const char* g_menu[3] = { "SINGLEPLAYER", "MULTIPLAYER", "Mods" };
+static const char* g_menuKey[3] = { "menu.singleplayer", "menu.multiplayer", nullptr };
+#define N_MENU 3
+// botoes de icone (lateral direita do menu): 0=engrenagem(opcoes), 1=globo(idiomas), 2=porta(sair)
+static const int IC_BTN[3] = { IC_GEAR, IC_GLOBE, IC_DOOR };
+static const int IC_REG[3] = { -60, -61, -62 };
+static void vc_icobtn(int i, float fw, float fh, float* bx, float* by, float* bs) {
+    *bs = 76.0f; *bx = fw - 40.0f - *bs; *by = fh * 0.30f + i * (*bs + 18.0f);
+}
 
 static int hitTest(float x, float y) {
     float fw = (float)g_lastW, fh = (float)g_lastH, cx = fw * 0.5f;
@@ -351,6 +454,10 @@ static int hitTest(float x, float y) {
     for (int i = 0; i < N_MENU; i++) {
         if (x >= px && x <= px + pw && y >= py && y <= py + ph) return i;
         py += ph + gap;
+    }
+    for (int i = 0; i < 3; i++) {
+        float bx, by, bs; vc_icobtn(i, fw, fh, &bx, &by, &bs);
+        if (x >= bx && x <= bx + bs && y >= by && y <= by + bs) return IC_REG[i];
     }
     return R_NONE;
 }
@@ -499,16 +606,16 @@ static void vc_mod_set_enabled(VoidModule* m, bool on) {
 // ---- tela de Modulos (cards por categoria) ----
 static void ui_build_modules(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xF00A0A12u);
-    draw_text(40.0f, 74.0f, "MODULOS", 44.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(40.0f, 74.0f, "Mods", 44.0f, 0xFFF2F2FFu);
     draw_rect(40.0f, 90.0f, 150.0f, 4.0f, 0xFF7A3CFFu);
     // tabs de categoria
     float tx = 40.0f, ty = 120.0f, th = 54.0f;
     for (int c = 0; c < CAT_COUNT; c++) {
-        float tw = text_width(CAT_NAMES[c], 24.0f) + 36.0f;
+        float tw = text_width(vc_tr(CAT_NAMES[c]), 24.0f) + 36.0f;
         unsigned bg = (c == g_modCat) ? 0xFF7A3CFFu : 0xCC1A1A26u;
         draw_rect(tx, ty, tw, th, bg);
-        draw_text(tx + 18.0f, ty + 35.0f, CAT_NAMES[c], 24.0f, 0xFFEAEAF6u);
+        draw_text(tx + 18.0f, ty + 35.0f, vc_tr(CAT_NAMES[c]), 24.0f, 0xFFEAEAF6u);
         tx += tw + 10.0f;
     }
     // cards (linhas) da categoria selecionada
@@ -521,7 +628,7 @@ static void ui_build_modules(int W, int H) {
         draw_rect(cardX, cardY, 6.0f, cardH, m->enabled ? 0xFF7A3CFFu : 0xFF3A3A4Au);
         draw_text(cardX + 28.0f, cardY + 40.0f, m->name, 28.0f, 0xFFF2F2FFu);
         if (m->description[0]) draw_text(cardX + 28.0f, cardY + 72.0f, m->description, 20.0f, 0xFF9A9ABF);
-        if (m->settingCount > 0) draw_text(cardX + cardW - 320.0f, cardY + cardH * 0.5f + 8.0f, "Configurar", 22.0f, 0xFF8A8AB0u);
+        if (m->settingCount > 0) draw_text(cardX + cardW - 320.0f, cardY + cardH * 0.5f + 8.0f, vc_tr("Configurar"), 22.0f, 0xFF8A8AB0u);
         // toggle pill a direita
         float pw = 120.0f, px = cardX + cardW - pw - 20.0f, pyy = cardY + cardH * 0.5f - 24.0f, ph = 48.0f;
         draw_rect(px, pyy, pw, ph, m->enabled ? 0xFF2E7D32u : 0xFF3A2A2Au);
@@ -529,14 +636,14 @@ static void ui_build_modules(int W, int H) {
         cardY += cardH + gap;
     }
     draw_rect(40.0f, fh - 78.0f, 200.0f, 54.0f, 0xCC1A1A26u);
-    draw_text(68.0f, fh - 42.0f, "Voltar", 26.0f, 0xFFEAEAF6u);
+    draw_text(68.0f, fh - 42.0f, vc_tr("gui.back"), 26.0f, 0xFFEAEAF6u);
 }
 static int hitTestModules(float x, float y) {
     float fw = (float)g_lastW, fh = (float)g_lastH;
     if (x >= 40.0f && x <= 240.0f && y >= fh - 78.0f && y <= fh - 24.0f) return -10;
     float tx = 40.0f, ty = 120.0f, th = 54.0f;
     for (int c = 0; c < CAT_COUNT; c++) {
-        float tw = text_width(CAT_NAMES[c], 24.0f) + 36.0f;
+        float tw = text_width(vc_tr(CAT_NAMES[c]), 24.0f) + 36.0f;
         if (x >= tx && x <= tx + tw && y >= ty && y <= ty + th) return 100 + c;
         tx += tw + 10.0f;
     }
@@ -563,7 +670,7 @@ static void vc_modcfg_fmt(VSetting& s, char* buf, int n) {
 }
 static void ui_build_modcfg(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xF00A0A12u);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
     VoidModule* m = (g_cfgModule >= 0 && g_cfgModule < g_moduleCount) ? g_modules[g_cfgModule] : nullptr;
     if (!m) return;
     draw_text(40.0f, 74.0f, m->name, 40.0f, 0xFFF2F2FFu);
@@ -609,7 +716,7 @@ static void ui_build_modcfg(int W, int H) {
         ry += rh;
     }
     draw_rect(40.0f, fh - 78.0f, 200.0f, 54.0f, 0xCC1A1A26u);
-    draw_text(68.0f, fh - 42.0f, "Voltar", 26.0f, 0xFFEAEAF6u);
+    draw_text(68.0f, fh - 42.0f, vc_tr("gui.back"), 26.0f, 0xFFEAEAF6u);
 }
 static const unsigned VC_PALETTE[8] = { 0xFF7A3CFFu, 0xFFFFFFFFu, 0xFFFF5555u, 0xFF55FF55u, 0xFF55AAFFu, 0xFFFFFF55u, 0xFFFF9A3Cu, 0xFF000000u };
 static int hitTestModCfg(float x, float y) {
@@ -700,8 +807,15 @@ static void ui_build(int W, int H) {
         unsigned bg = (i == g_press_region) ? 0xEE2A2A3Au : 0xCC12121Bu;
         draw_rect(px, py, pw, ph, bg);
         draw_rect(px, py, 6.0f, ph, 0xFF7A3CFFu);
-        draw_text_c(cx + 3.0f, py + ph * 0.5f + 10.0f, g_menu[i], 30.0f, 0xFFEAEAF6u);
+        draw_text_c(cx + 3.0f, py + ph * 0.5f + 10.0f, g_menuKey[i] ? vc_tr(g_menuKey[i]) : g_menu[i], 30.0f, 0xFFEAEAF6u);
         py += ph + gap;
+    }
+    for (int i = 0; i < 3; i++) {
+        float bx, by, bs; vc_icobtn(i, fw, fh, &bx, &by, &bs);
+        draw_rect(bx, by, bs, bs, (g_press_region == IC_REG[i]) ? 0xEE2A2A3Au : 0xCC12121Bu);
+        draw_rect(bx, by, bs, 5.0f, 0xFF7A3CFFu);
+        float pad = bs * 0.22f;
+        draw_icon(IC_BTN[i], bx + pad, by + pad, bs - 2.0f * pad, 0xFFEAEAF6u);
     }
     draw_text(48.0f, fh - 48.0f, "v0.15.10", 26.0f, 0xFF8A6ABFu);
 }
@@ -713,14 +827,72 @@ static void segment(UIVert* buf, int n, GLuint tex) {
     glDrawArrays(GL_TRIANGLES, 0, n);
 }
 
+// frosted glass: captura o framebuffer do jogo e desenha MUITO borrado por baixo da UI.
+static void vc_blur_ensure(int LW, int LH) {
+    if (g_loW == LW && g_loH == LH && g_loFbo) return;
+    if (g_loTex) glDeleteTextures(1, &g_loTex);
+    if (g_loFbo) glDeleteFramebuffers(1, &g_loFbo);
+    glGenTextures(1, &g_loTex);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_loTex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+    glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, LW, LH, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+    glGenFramebuffers(1, &g_loFbo);
+    glBindFramebuffer(GL_FRAMEBUFFER, g_loFbo);
+    glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, g_loTex, 0);
+    g_loW = LW; g_loH = LH;
+}
+static void vc_blur_quad(float w, float h, float v0, float v1) {
+    int n = 0;
+    push(g_vQuad, &n, 0.0f, 0.0f, w, h, 0.0f, v0, 1.0f, v1, 0xFFFFFFFFu);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(6 * (int)sizeof(UIVert)), g_vQuad, GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+static void vc_blur_bg(int W, int H) {
+    int LW = W / 4, LH = H / 4;
+    if (LW < 1) LW = 1;
+    if (LH < 1) LH = 1;
+    // captura o FB do jogo (FB0 ligado) ANTES de criar/ligar o FBO lo-res
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_capTex);
+    glCopyTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, 0, 0, W, H, 0);
+    vc_blur_ensure(LW, LH);
+    glUseProgram(g_blurProg);
+    glUniform1i(g_uBlurTex, 0);
+    glDisable(GL_BLEND);
+    // passe 1: captura (full) -> FBO 1/4, borra enquanto reduz
+    glBindFramebuffer(GL_FRAMEBUFFER, g_loFbo);
+    glViewport(0, 0, LW, LH);
+    glUniform2f(g_uBlurInv, 2.0f / (float)LW, 2.0f / (float)LH);
+    glUniform2f(g_uBlurTexel, 1.0f / (float)W, 1.0f / (float)H);
+    glBindTexture(GL_TEXTURE_2D, g_capTex);
+    vc_blur_quad((float)LW, (float)LH, 0.0f, 1.0f);
+    // passe 2: FBO 1/4 -> tela, borra de novo ao ampliar (flip V)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glViewport(0, 0, W, H);
+    glUniform2f(g_uBlurInv, 2.0f / (float)W, 2.0f / (float)H);
+    glUniform2f(g_uBlurTexel, 1.0f / (float)LW, 1.0f / (float)LH);
+    glBindTexture(GL_TEXTURE_2D, g_loTex);
+    vc_blur_quad((float)W, (float)H, 0.0f, 1.0f);
+    glEnable(GL_BLEND);
+    glUseProgram(g_prog);
+    glUniform2f(g_uInvScreen, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
+    glUniform1i(g_uTex, 0);
+}
+
 static void overlay_frame(int W, int H) {
     g_pixelH = H;
     { static int t0 = 0, fr = 0; int now = vc_now_ms(); fr++; if (!t0) t0 = now; if (now - t0 >= 500) { g_fps = fr * 1000 / (now - t0); fr = 0; t0 = now; } }
     float vh = 1080.0f / g_optMult, vw = vh * (float)W / (float)H;
     g_lastW = (int)(vw + 0.5f); g_lastH = (int)vh;
-    g_nSolid = 0; g_nText = 0;
+    g_nSolid = 0; g_nText = 0; g_nIcon = 0;
     ui_build(g_lastW, g_lastH);
-    if (!g_nSolid && !g_nText) return;
+    int doBlur = ((g_screen >= 1 && g_screen <= 9) || onPauseScreen(g_mc));
+    if (!g_nSolid && !g_nText && !g_nIcon && !doBlur) return;
 
     glUseProgram(g_prog);
     glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
@@ -738,8 +910,11 @@ static void overlay_frame(int W, int H) {
     glUniform2f(g_uInvScreen, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
     glActiveTexture(GL_TEXTURE0); glUniform1i(g_uTex, 0);
 
+    if (doBlur) vc_blur_bg(W, H);
+
     segment(g_vSolid, g_nSolid, g_white);
     segment(g_vText, g_nText, g_font);
+    segment(g_vIcon, g_nIcon, g_iconTex);
 }
 
 static void gl_save(GLSaved* s) {
@@ -915,6 +1090,67 @@ static void vc_str_init() {
 }
 static inline void vc_mkstr(void** slot, const char* c) { char a; *slot = nullptr; if (Str_ctor) Str_ctor((void*)slot, c, &a); }
 static inline void vc_delstr(void** slot) { if (Str_dtor) Str_dtor((void*)slot); }
+
+// i18n: traduz uma chave .lang via I18n::get@0xa97ee4 (igual a vanilla, em todos os idiomas).
+// Cache por ponteiro-de-chave, invalidado quando o idioma muda (I18n::mCurrentLanguage@0x16b63d8).
+// Fallback = a propria chave (chaves custom sem traducao). NAO usar p/ texto de marca/modulos.
+// idioma atual == portugues? (cacheado; Localization::getLanguageCode@0xa983f1 no idioma atual)
+static int vc_lang_pt() {
+    static void* clang = (void*)1; static int cpt = 0;
+    if (!g_slide || !Str_ctor) return 0;
+    void* loc = *(void**)(g_slide + 0x16b63d8u);
+    if (loc != clang) {
+        clang = loc; cpt = 0;
+        if (loc) {
+            void* cs = nullptr;
+            ((void(*)(void*, void*))VC_CALL(0xa983f1u))(&cs, loc);
+            const char* c = str_data(&cs);
+            cpt = (c && c[0] == 'p' && c[1] == 't') ? 1 : 0;
+            vc_delstr(&cs);
+        }
+    }
+    return cpt;
+}
+// textos NOSSOS sem chave .lang vanilla: PT (a propria string) + EN. Fallback de outros idiomas = EN.
+static const struct { const char* pt; const char* en; } g_cust[] = {
+    { "1a Pessoa", "First Person" }, { "3a Pessoa", "Third Person" }, { "3a Frente", "Front View" },
+    { "Nenhum mundo local", "No local worlds" }, { "Nenhum servidor salvo", "No saved servers" },
+    { "Nenhum idioma", "No languages" }, { "Nenhum modulo", "No modules" },
+    { "Editar Mundo", "Edit World" }, { "EDITAR MUNDO", "EDIT WORLD" },
+    { "EDITAR SERVIDOR", "EDIT SERVER" }, { "ADICIONAR SERVIDOR", "ADD SERVER" },
+    { "Informe ao menos o Endereco / IP", "Enter at least the Address / IP" },
+    { "Configurar", "Configure" }, { "Expandir", "Expand" },
+    { "Jogabilidade", "Gameplay" }, { "Cosmeticos", "Cosmetics" }, { "Perfil", "Profile" },
+};
+static const char* vc_tr(const char* key) {
+    static const char* ckey[192];
+    static char ctext[192][80];
+    static int cn = 0;
+    static void* clang = (void*)1;
+    if (!g_slide || !Str_ctor || !key) return key;
+    void* lang = *(void**)(g_slide + 0x16b63d8u);
+    if (lang != clang) { clang = lang; cn = 0; }
+    for (int i = 0; i < cn; i++) if (ckey[i] == key) return ctext[i];
+    char tmp[80];
+    const char* out = key;
+    int custom = 0;
+    if (!vc_lang_pt()) {   // idioma != PT: nossos textos custom viram EN
+        for (int i = 0; i < (int)(sizeof(g_cust) / sizeof(g_cust[0])); i++)
+            if (!strcmp(g_cust[i].pt, key)) { out = g_cust[i].en; custom = 1; break; }
+    }
+    if (!custom) {         // chave vanilla (ou PT: literal custom volta inalterado de I18n::get)
+        void* ks = nullptr; void* os = nullptr;
+        vc_mkstr(&ks, key);
+        ((void(*)(void*, const void*))VC_CALL(0xa97ee4u))(&os, &ks);
+        const char* s = str_data(&os);
+        if (s && s[0]) { snprintf(tmp, sizeof tmp, "%s", s); out = tmp; }
+        vc_delstr(&os); vc_delstr(&ks);
+    }
+    const char* ret;
+    if (cn < 192) { ckey[cn] = key; snprintf(ctext[cn], 80, "%s", out); ret = ctext[cn]; cn++; }
+    else { static char t2[80]; snprintf(t2, 80, "%s", out); ret = t2; }
+    return ret;
+}
 
 typedef void (*fn_psm_ctor)(void*, void*);
 typedef void (*fn_psm_dtor)(void*);
@@ -1188,36 +1424,37 @@ typedef void (*fn_set_f)(void*, const void*, float);
 static void* vc_opts() { return g_mc ? *(void**)((char*)g_mc + 0x13c) : nullptr; }
 
 enum { T_SLF = 0, T_SLI = 1, T_SLN = 2, T_TGL = 3 };
-static const char* DIFF_NAMES[4] = { "Pacifico", "Facil", "Normal", "Dificil" };
+// textos abaixo sao CHAVES .lang vanilla (traduzidas por vc_tr); literais = sem chave vanilla (passam direto).
+static const char* DIFF_NAMES[4] = { "options.difficulty.peaceful", "options.difficulty.easy", "options.difficulty.normal", "options.difficulty.hard" };
 static const char* PERSP_NAMES[3] = { "1a Pessoa", "3a Pessoa", "3a Frente" };
-static const char* TAB_NAMES[3] = { "Geral", "Controles", "Graficos" };
-static const char* CW_MODE_NAMES[2] = { "Sobrevivencia", "Criativo" };
-static const char* CW_TYPE_NAMES[3] = { "Infinito", "Plano", "Antigo" };
+static const char* TAB_NAMES[3] = { "stat.generalButton", "controls.title", "options.group.graphics" };
+static const char* CW_MODE_NAMES[2] = { "createWorldScreen.gameMode.survival", "createWorldScreen.gameMode.creative" };
+static const char* CW_TYPE_NAMES[3] = { "generator.infinite", "generator.flat", "generator.old" };
 static const int CW_TYPE_GEN[3] = { 1, 2, 0 };
 
 typedef struct { const char* label; unsigned off; unsigned opt; int type; float lo, hi; const char* const* names; int tab; } VOpt;
 static VOpt g_opt[] = {
-    { "Volume do Som", 0x54, 0x16b2000u, T_SLF, 0.0f, 1.0f, nullptr, 0 },
-    { "Dificuldade", 0x88, 0x16b2038u, T_SLN, 0.0f, 3.0f, DIFF_NAMES, 0 },
-    { "Visao 3a Pessoa", 0x90, 0x16b2058u, T_SLN, 0.0f, 2.0f, PERSP_NAMES, 0 },
-    { "Partida Multijogador", 0x160, 0x16b2068u, T_TGL, 0.0f, 1.0f, nullptr, 0 },
-    { "Transmitir p/ LAN", 0x114, 0x16b2070u, T_TGL, 0.0f, 1.0f, nullptr, 0 },
-    { "Usar Dados Moveis", 0x163, 0u, T_TGL, 0.0f, 1.0f, nullptr, 0 },
-    { "Sensibilidade", 0x58, 0x16b2010u, T_SLF, 0.0f, 1.0f, nullptr, 1 },
-    { "Inverter Eixo Y", 0x60, 0x16b2008u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
-    { "Canhoto", 0x72, 0x16b2080u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
-    { "Dividir Controles", 0x115, 0x16b2090u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
-    { "Trocar Saltar/Agachar", 0x116, 0x16b2228u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
-    { "Tamanho do Botao", 0x12c, 0x16b20a8u, T_SLF, 0.0f, 1.0f, nullptr, 1 },
-    { "Pulo Automatico", 0x74, 0x16b21e8u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
-    { "Brilho", 0xe0, 0x16b21e0u, T_SLF, 0.0f, 1.0f, nullptr, 2 },
-    { "Distancia de Render", 0x64, 0x16b2018u, T_SLI, 4.0f, 16.0f, nullptr, 2 },
-    { "Escala de GUI", 0xf8, 0x16b2050u, T_SLI, 0.0f, 2.0f, nullptr, 2 },
-    { "Campo de Visao", 0xe4, 0x16b2248u, T_SLF, 30.0f, 110.0f, nullptr, 2 },
-    { "Graficos Caprichados", 0x6e, 0x16b2040u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
-    { "Detalhes do Ceu", 0x118, 0x16b20a0u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
-    { "Movimentos na Visao", 0x6c, 0x16b2028u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
-    { "Ocultar GUI", 0x8c, 0x16b2060u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
+    { "options.sound", 0x54, 0x16b2000u, T_SLF, 0.0f, 1.0f, nullptr, 0 },
+    { "options.difficulty", 0x88, 0x16b2038u, T_SLN, 0.0f, 3.0f, DIFF_NAMES, 0 },
+    { "options.thirdperson", 0x90, 0x16b2058u, T_SLN, 0.0f, 2.0f, PERSP_NAMES, 0 },
+    { "options.multiplayergame", 0x160, 0x16b2068u, T_TGL, 0.0f, 1.0f, nullptr, 0 },
+    { "menu.shareToLan", 0x114, 0x16b2070u, T_TGL, 0.0f, 1.0f, nullptr, 0 },
+    { "options.allowCellularData", 0x163, 0u, T_TGL, 0.0f, 1.0f, nullptr, 0 },
+    { "options.sensitivity", 0x58, 0x16b2010u, T_SLF, 0.0f, 1.0f, nullptr, 1 },
+    { "options.invertYAxis", 0x60, 0x16b2008u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
+    { "options.lefthanded", 0x72, 0x16b2080u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
+    { "options.usetouchpad", 0x115, 0x16b2090u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
+    { "options.swapJumpAndSneak", 0x116, 0x16b2228u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
+    { "options.buttonSize", 0x12c, 0x16b20a8u, T_SLF, 0.0f, 1.0f, nullptr, 1 },
+    { "options.autojump", 0x74, 0x16b21e8u, T_TGL, 0.0f, 1.0f, nullptr, 1 },
+    { "options.gamma", 0xe0, 0x16b21e0u, T_SLF, 0.0f, 1.0f, nullptr, 2 },
+    { "options.renderDistance", 0x64, 0x16b2018u, T_SLI, 4.0f, 16.0f, nullptr, 2 },
+    { "options.guiScale.optionName", 0xf8, 0x16b2050u, T_SLI, 0.0f, 2.0f, nullptr, 2 },
+    { "options.fov", 0xe4, 0x16b2248u, T_SLF, 30.0f, 110.0f, nullptr, 2 },
+    { "options.graphics", 0x6e, 0x16b2040u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
+    { "options.fancyskies", 0x118, 0x16b20a0u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
+    { "options.viewBobbing", 0x6c, 0x16b2028u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
+    { "options.hidegui", 0x8c, 0x16b2060u, T_TGL, 0.0f, 1.0f, nullptr, 2 },
 };
 #define N_OPT ((int)(sizeof(g_opt) / sizeof(g_opt[0])))
 
@@ -1296,21 +1533,12 @@ static void vc_edit_world(int idx, const char* name, int mode, int diff) {
 
 static void ui_build_options(int W, int H) {
     float fw = (float)W, fh = (float)H, cx = 80.0f, cw = fw * 0.40f;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
-    draw_text(80.0f, 96.0f, "OPCOES", 48.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(80.0f, 96.0f, vc_tr("options.title"), 48.0f, 0xFFF2F2FFu);
     for (int t = 0; t < 3; t++) {
         float bx = 80.0f + t * 212.0f;
         draw_rect(bx, 140.0f, 200.0f, 56.0f, (t == g_tab) ? 0xFF7A3CFFu : 0xFF1B1B26u);
-        draw_text(bx + 24.0f, 177.0f, TAB_NAMES[t], 28.0f, 0xFFF0F0FFu);
-    }
-    {
-        const char* cl = ""; void* ol = vc_opts();
-        if (ol) { const char* c = str_data((char*)ol + 0x84); if (c) cl = c; }
-        float lx = fw - 340.0f;
-        draw_rect(lx, 140.0f, 260.0f, 56.0f, (g_press_region == -50) ? 0xFF3A2A5Au : 0xFF2A1A4Au);
-        draw_rect(lx, 140.0f, 5.0f, 56.0f, 0xFF7A3CFFu);
-        char lb[48]; snprintf(lb, sizeof lb, "Idioma: %s", cl);
-        draw_text(lx + 20.0f, 177.0f, lb, 24.0f, 0xFFEAEAF6u);
+        draw_text(bx + 24.0f, 177.0f, vc_tr(TAB_NAMES[t]), 28.0f, 0xFFF0F0FFu);
     }
     int count = 0;
     for (int i = 0; i < N_OPT; i++) if (g_opt[i].tab == g_tab) count++;
@@ -1324,7 +1552,7 @@ static void ui_build_options(int W, int H) {
         if (g_opt[i].tab != g_tab) continue;
         VOpt* c = &g_opt[i];
         float v = opt_disp(i);
-        draw_text(cx, y - 7.0f * cs, c->label, 27.0f * cs, 0xFFEAEAF6u);
+        draw_text_fit(cx, y - 7.0f * cs, vc_tr(c->label), 27.0f * cs, cw + 20.0f, 0xFFEAEAF6u);
         if (c->type == T_TGL) {
             int on = (int)(v + 0.5f);
             draw_rect(cx + cw + 40.0f, y - 21.0f * cs, 118.0f, 40.0f * cs, on ? 0xFF7A3CFFu : 0xFF2A2A3Au);
@@ -1341,7 +1569,7 @@ static void ui_build_options(int W, int H) {
                 int idx = (int)(v + 0.5f);
                 if (idx < 0) idx = 0;
                 if (idx > (int)(c->hi + 0.5f)) idx = (int)(c->hi + 0.5f);
-                snprintf(buf, sizeof buf, "%s", c->names[idx]);
+                snprintf(buf, sizeof buf, "%s", vc_tr(c->names[idx]));
             } else if (c->type == T_SLI) snprintf(buf, sizeof buf, "%d", (int)(v + 0.5f));
             else if (c->hi <= 1.5f) snprintf(buf, sizeof buf, "%.2f", v);
             else snprintf(buf, sizeof buf, "%.0f", v);
@@ -1351,7 +1579,7 @@ static void ui_build_options(int W, int H) {
     }
     draw_rect(80.0f, voltar_y, 240.0f, 66.0f, 0xFF1B1B26u);
     draw_rect(80.0f, voltar_y, 5.0f, 66.0f, 0xFF7A3CFFu);
-    draw_text(110.0f, voltar_y + 44.0f, "Voltar", 32.0f, 0xFFEAEAF6u);
+    draw_text(110.0f, voltar_y + 44.0f, vc_tr("gui.back"), 32.0f, 0xFFEAEAF6u);
 }
 
 static int hitTestOptions(float x, float y) {
@@ -1360,7 +1588,6 @@ static int hitTestOptions(float x, float y) {
         float bx = 80.0f + t * 212.0f;
         if (x >= bx && x <= bx + 200.0f && y >= 140.0f && y <= 196.0f) return 100 + t;
     }
-    { float lx = fw - 340.0f; if (x >= lx && x <= lx + 260.0f && y >= 140.0f && y <= 196.0f) return -50; }
     int count = 0;
     for (int i = 0; i < N_OPT; i++) if (g_opt[i].tab == g_tab) count++;
     float rows_top = 210.0f, voltar_y = fh - 100.0f;
@@ -1380,7 +1607,7 @@ static int hitTestOptions(float x, float y) {
     return -1;
 }
 
-static const char* PAUSE_BTN[3] = { "Voltar ao Jogo", "Opcoes", "Sair do Mundo" };
+static const char* PAUSE_BTN[3] = { "menu.returnToGame", "pauseScreen.options", "pauseScreen.quit" };
 
 static void ui_build_pause(int W, int H) {
     float fw = (float)W, fh = (float)H, cx = fw * 0.5f;
@@ -1393,7 +1620,7 @@ static void ui_build_pause(int W, int H) {
         unsigned bg = (i == g_press_region) ? 0xE62A2A3Au : 0xD214141Eu;
         draw_rect(px, py, pw, ph, bg);
         draw_rect(px, py, 5.0f, ph, 0xFF7A3CFFu);
-        draw_text_c(cx + 2.5f, py + ph * 0.5f + 10.0f, PAUSE_BTN[i], 30.0f, 0xFFEAEAF6u);
+        draw_text_fit_c(cx + 2.5f, py + ph * 0.5f + 10.0f, vc_tr(PAUSE_BTN[i]), 30.0f, pw - 60.0f, 0xFFEAEAF6u);
         py += ph + gap;
     }
 }
@@ -1411,12 +1638,12 @@ static int hitTestPause(float x, float y) {
 
 static void ui_build_worlds(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
-    draw_text(80.0f, 96.0f, "SINGLEPLAYER", 48.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(80.0f, 96.0f, vc_tr("menu.singleplayer"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 320.0f, 4.0f, 0xFF7A3CFFu);
     float rows_top = 172.0f, voltar_y = fh - 100.0f, rh = 100.0f;
     int vis = (int)((voltar_y - 20.0f - rows_top) / rh);
-    if (g_worldCount == 0) draw_text(84.0f, rows_top + 48.0f, "Nenhum mundo local", 30.0f, 0xFF8A8AA8u);
+    if (g_worldCount == 0) draw_text(84.0f, rows_top + 48.0f, vc_tr("Nenhum mundo local"), 30.0f, 0xFF8A8AA8u);
     for (int i = 0; i < g_worldCount && i < vis; i++) {
         float y = rows_top + i * rh;
         draw_rect(80.0f, y, fw - 160.0f, rh - 16.0f, (i == g_press_region) ? 0xEE2A2A3Au : 0xCC14141Eu);
@@ -1424,26 +1651,27 @@ static void ui_build_worlds(int W, int H) {
         draw_text(116.0f, y + (rh - 16.0f) * 0.5f + 11.0f, g_worldNames[i], 32.0f, 0xFFEAEAF6u);
         float ex = fw - 80.0f - 150.0f;
         draw_rect(ex, y + 17.0f, 140.0f, 50.0f, (g_press_region == 1000 + i) ? 0xFF3A2A5Au : 0xFF262636u);
-        draw_text(ex + 26.0f, y + 50.0f, "Editar", 24.0f, 0xFF9A7ACFu);
+        draw_text(ex + 26.0f, y + 50.0f, vc_tr("selectServer.edit"), 24.0f, 0xFF9A7ACFu);
     }
     if (g_worldCount > vis) { char b[24]; snprintf(b, sizeof b, "+%d mais", g_worldCount - vis); draw_text(84.0f, voltar_y - 14.0f, b, 24.0f, 0xFF8A8AA8u); }
     draw_rect(80.0f, voltar_y, 240.0f, 66.0f, 0xFF1B1B26u);
     draw_rect(80.0f, voltar_y, 5.0f, 66.0f, 0xFF7A3CFFu);
-    draw_text(110.0f, voltar_y + 44.0f, "Voltar", 32.0f, 0xFFEAEAF6u);
+    draw_text(110.0f, voltar_y + 44.0f, vc_tr("gui.back"), 32.0f, 0xFFEAEAF6u);
     float ax = fw - 380.0f;
     draw_rect(ax, voltar_y, 300.0f, 66.0f, 0xFF2A1A4Au);
     draw_rect(ax, voltar_y, 5.0f, 66.0f, 0xFF7A3CFFu);
-    draw_text(ax + 30.0f, voltar_y + 44.0f, "+ Criar Mundo", 30.0f, 0xFFEAEAF6u);
+    char cmb[48]; snprintf(cmb, sizeof cmb, "+ %s", vc_tr("selectWorld.newWorld"));
+    draw_text_fit(ax + 30.0f, voltar_y + 44.0f, cmb, 30.0f, 250.0f, 0xFFEAEAF6u);
 }
 
 static void ui_build_servers(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
-    draw_text(80.0f, 96.0f, "MULTIPLAYER", 48.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(80.0f, 96.0f, vc_tr("menu.multiplayer"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 300.0f, 4.0f, 0xFF7A3CFFu);
     float rows_top = 172.0f, voltar_y = fh - 100.0f, rh = 120.0f;
     int vis = (int)((voltar_y - 20.0f - rows_top) / rh);
-    if (g_serverCount == 0) draw_text(84.0f, rows_top + 48.0f, "Nenhum servidor salvo", 30.0f, 0xFF8A8AA8u);
+    if (g_serverCount == 0) draw_text(84.0f, rows_top + 48.0f, vc_tr("Nenhum servidor salvo"), 30.0f, 0xFF8A8AA8u);
     for (int i = 0; i < g_serverCount && i < vis; i++) {
         float y = rows_top + i * rh, rb = rh - 16.0f;
         VcPing* p = ping_for(g_servers[i].id);
@@ -1457,7 +1685,7 @@ static void ui_build_servers(int W, int H) {
         if (p && p->online && p->motd[0]) draw_text_mc(136.0f, y + 100.0f, p->motd, 22.0f, 0xFFBFC2D8u);
         float ex = fw - 80.0f - 150.0f;
         draw_rect(ex, y + 14.0f, 140.0f, 46.0f, (g_press_region == 1000 + i) ? 0xFF3A2A5Au : 0xFF262636u);
-        draw_text(ex + 26.0f, y + 44.0f, "Editar", 24.0f, 0xFF9A7ACFu);
+        draw_text(ex + 26.0f, y + 44.0f, vc_tr("selectServer.edit"), 24.0f, 0xFF9A7ACFu);
         float sx = fw - 80.0f - 150.0f - 240.0f;
         if (p && p->pingMs >= 0) {
             char pb[48];
@@ -1475,16 +1703,17 @@ static void ui_build_servers(int W, int H) {
     if (g_serverCount > vis) { char b[24]; snprintf(b, sizeof b, "+%d mais", g_serverCount - vis); draw_text(84.0f, voltar_y - 14.0f, b, 24.0f, 0xFF8A8AA8u); }
     draw_rect(80.0f, voltar_y, 240.0f, 66.0f, 0xFF1B1B26u);
     draw_rect(80.0f, voltar_y, 5.0f, 66.0f, 0xFF7A3CFFu);
-    draw_text(110.0f, voltar_y + 44.0f, "Voltar", 32.0f, 0xFFEAEAF6u);
+    draw_text(110.0f, voltar_y + 44.0f, vc_tr("gui.back"), 32.0f, 0xFFEAEAF6u);
     float ax = fw - 380.0f;
     draw_rect(ax, voltar_y, 300.0f, 66.0f, 0xFF2A1A4Au);
     draw_rect(ax, voltar_y, 5.0f, 66.0f, 0xFF7A3CFFu);
-    draw_text(ax + 30.0f, voltar_y + 44.0f, "+ Adicionar", 30.0f, 0xFFEAEAF6u);
+    char asb[48]; snprintf(asb, sizeof asb, "+ %s", vc_tr("selectServer.add"));
+    draw_text_fit(ax + 30.0f, voltar_y + 44.0f, asb, 30.0f, 250.0f, 0xFFEAEAF6u);
 }
 
 static void ui_build_loading(int W, int H) {
     float fw = (float)W, fh = (float)H, cx = fw * 0.5f;
-    draw_rect(0, 0, fw, fh, 0xFF06060Au);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
     draw_text_c(cx, fh * 0.40f, "VOID CLIENT", 52.0f, 0xFFF2F2FFu);
     draw_rect(cx - 90.0f, fh * 0.40f + 22.0f, 180.0f, 4.0f, 0xFF7A3CFFu);
     if (g_loadMsg[0]) draw_text_c(cx, fh * 0.50f, g_loadMsg, 26.0f, 0xFF9A7ACFu);
@@ -1534,9 +1763,9 @@ static int hitTestServers(float x, float y) {
 
 static void ui_build_createworld(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
     int editing = (g_editWorldIdx >= 0);
-    draw_text(80.0f, 96.0f, editing ? "EDITAR MUNDO" : "CRIAR MUNDO", 48.0f, 0xFFF2F2FFu);
+    draw_text(80.0f, 96.0f, editing ? vc_tr("Editar Mundo") : vc_tr("selectWorld.newWorld"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 300.0f, 4.0f, 0xFF7A3CFFu);
     float fx = 80.0f, fw2 = fw - 160.0f, top = 158.0f, by = fh - 140.0f;
     float step = (by - 20.0f - top) / 5.0f;
@@ -1546,31 +1775,31 @@ static void ui_build_createworld(int W, int H) {
     float y0 = top;
     draw_rect(fx, y0, fw2, rh, (g_activeField == 1) ? 0xFF2A2A3Au : 0xCC14141Eu);
     draw_rect(fx, y0, 6.0f, rh, 0xFF7A3CFFu);
-    draw_text(fx + 28.0f, y0 + 30.0f, "Nome do mundo", 20.0f, 0xFF8A8AA8u);
+    draw_text(fx + 28.0f, y0 + 30.0f, vc_tr("selectWorld.enterName"), 20.0f, 0xFF8A8AA8u);
     draw_text(fx + 28.0f, y0 + rh - 18.0f, g_fields[0][0] ? g_fields[0] : "...", 28.0f, 0xFFEAEAF6u);
     float y1 = top + step;
     draw_rect(fx, y1, fw2, rh, (g_activeField == 2) ? 0xFF2A2A3Au : 0xCC14141Eu);
     draw_rect(fx, y1, 6.0f, rh, 0xFF7A3CFFu);
-    draw_text(fx + 28.0f, y1 + 30.0f, "Seed (vazio = aleatoria)", 20.0f, 0xFF8A8AA8u);
+    draw_text(fx + 28.0f, y1 + 30.0f, vc_tr("createWorldScreen.levelSeed"), 20.0f, 0xFF8A8AA8u);
     draw_text(fx + 28.0f, y1 + rh - 18.0f, g_fields[1][0] ? g_fields[1] : "...", 28.0f, 0xFFEAEAF6u);
-    const char* selLabel[3] = { "Modo", "Tipo de mundo", "Dificuldade" };
+    const char* selLabel[3] = { "createWorldScreen.gameMode", "createWorldScreen.worldType", "options.difficulty" };
     const char* selVal[3] = { CW_MODE_NAMES[g_cwMode], CW_TYPE_NAMES[g_cwType], DIFF_NAMES[g_cwDiff] };
     int selCode[3] = { -30, -31, -32 };
     for (int i = 0; i < 3; i++) {
         float y = top + (i + 2) * step;
         draw_rect(fx, y, fw2, rh, 0xCC14141Eu);
         draw_rect(fx, y, 6.0f, rh, 0xFF7A3CFFu);
-        draw_text(fx + 28.0f, y + rh * 0.5f + 9.0f, selLabel[i], 24.0f, 0xFFEAEAF6u);
+        draw_text(fx + 28.0f, y + rh * 0.5f + 9.0f, vc_tr(selLabel[i]), 24.0f, 0xFFEAEAF6u);
         int pressed = (g_press_region == selCode[i]);
         draw_rect(vx, y + 14.0f, vw, rh - 28.0f, pressed ? 0xFF3A2A5Au : 0xFF262636u);
-        draw_text_c(vx + vw * 0.5f, y + rh * 0.5f + 8.0f, selVal[i], 24.0f, 0xFF9A7ACFu);
+        draw_text_c(vx + vw * 0.5f, y + rh * 0.5f + 8.0f, vc_tr(selVal[i]), 24.0f, 0xFF9A7ACFu);
     }
     draw_rect(fx, by, 300.0f, 76.0f, (g_press_region == -20) ? 0xFF3A2A5Au : 0xFF2A1A4Au);
     draw_rect(fx, by, 6.0f, 76.0f, 0xFF7A3CFFu);
-    draw_text(fx + 40.0f, by + 50.0f, editing ? "Salvar" : "Criar", 32.0f, 0xFFEAEAF6u);
+    draw_text_fit(fx + 40.0f, by + 50.0f, editing ? vc_tr("controllerLayoutScreen.save") : vc_tr("gui.done"), 32.0f, 220.0f, 0xFFEAEAF6u);
     float vxb = fw - 380.0f;
     draw_rect(vxb, by, 300.0f, 76.0f, (g_press_region == -10) ? 0xFF2A2A3Au : 0xFF1B1B26u);
-    draw_text(vxb + 40.0f, by + 50.0f, "Voltar", 32.0f, 0xFFEAEAF6u);
+    draw_text(vxb + 40.0f, by + 50.0f, vc_tr("gui.back"), 32.0f, 0xFFEAEAF6u);
 }
 
 static int hitTestCreateWorld(float x, float y) {
@@ -1600,8 +1829,8 @@ static int hitTestCreateWorld(float x, float y) {
 
 static void ui_build_srvform(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
-    draw_text(80.0f, 96.0f, g_editServerId ? "EDITAR SERVIDOR" : "ADICIONAR SERVIDOR", 44.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(80.0f, 96.0f, g_editServerId ? vc_tr("EDITAR SERVIDOR") : vc_tr("ADICIONAR SERVIDOR"), 44.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 360.0f, 4.0f, 0xFF7A3CFFu);
     static const char* labs[3] = { "Nome", "Endereco / IP", "Porta" };
     float fx = 80.0f, fw2 = fw - 160.0f, fy = 180.0f, fh2 = 88.0f, gap = 18.0f;
@@ -1612,20 +1841,20 @@ static void ui_build_srvform(int W, int H) {
         draw_text(fx + 28.0f, y + 32.0f, labs[i], 20.0f, 0xFF8A8AA8u);
         draw_text(fx + 28.0f, y + 70.0f, g_fields[i][0] ? g_fields[i] : "...", 28.0f, 0xFFEAEAF6u);
     }
-    if (g_srvFormErr) draw_text(fx + 4.0f, fy + 3.0f * (fh2 + gap) + 30.0f, "Informe ao menos o Endereco / IP", 24.0f, 0xFFCB6A6Au);
+    if (g_srvFormErr) draw_text(fx + 4.0f, fy + 3.0f * (fh2 + gap) + 30.0f, vc_tr("Informe ao menos o Endereco / IP"), 24.0f, 0xFFCB6A6Au);
     float by = fh - 140.0f;
     draw_rect(fx, by, 300.0f, 72.0f, (g_press_region == -20) ? 0xFF3A2A5Au : 0xFF2A1A4Au);
     draw_rect(fx, by, 6.0f, 72.0f, 0xFF7A3CFFu);
-    draw_text(fx + 40.0f, by + 48.0f, "Salvar", 30.0f, 0xFFEAEAF6u);
+    draw_text(fx + 40.0f, by + 48.0f, vc_tr("controllerLayoutScreen.save"), 30.0f, 0xFFEAEAF6u);
     if (g_editServerId) {
         float ex = fw * 0.5f - 150.0f;
         draw_rect(ex, by, 300.0f, 72.0f, (g_press_region == -30) ? 0xFF5A2A2Au : 0xFF3A1E1Eu);
         draw_rect(ex, by, 6.0f, 72.0f, 0xFFCB4A4Au);
-        draw_text(ex + 40.0f, by + 48.0f, "Excluir", 30.0f, 0xFFE89A9Au);
+        draw_text(ex + 40.0f, by + 48.0f, vc_tr("selectServer.delete"), 30.0f, 0xFFE89A9Au);
     }
     float vx = fw - 380.0f;
     draw_rect(vx, by, 300.0f, 72.0f, (g_press_region == -10) ? 0xFF2A2A3Au : 0xFF1B1B26u);
-    draw_text(vx + 40.0f, by + 48.0f, "Voltar", 30.0f, 0xFFEAEAF6u);
+    draw_text(vx + 40.0f, by + 48.0f, vc_tr("gui.back"), 30.0f, 0xFFEAEAF6u);
 }
 
 static int hitTestSrvForm(float x, float y) {
@@ -1688,15 +1917,15 @@ static void vc_set_lang(int i) {
 }
 static void ui_build_langs(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
-    draw_text(80.0f, 96.0f, "IDIOMA", 48.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(80.0f, 96.0f, vc_tr("options.language"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 200.0f, 4.0f, 0xFF7A3CFFu);
     float top = 168.0f, voltar_y = fh - 100.0f, rh = 78.0f;
     int cols = (g_langCount > 22) ? 3 : 2;
     float gap = 20.0f, colW = (fw - 160.0f - gap * (cols - 1)) / cols;
     int maxRows = (int)((voltar_y - 20.0f - top) / rh);
     int maxVis = maxRows * cols;
-    if (g_langCount == 0) draw_text(84.0f, top + 48.0f, "Nenhum idioma", 30.0f, 0xFF8A8AA8u);
+    if (g_langCount == 0) draw_text(84.0f, top + 48.0f, vc_tr("Nenhum idioma"), 30.0f, 0xFF8A8AA8u);
     for (int i = 0; i < g_langCount && i < maxVis; i++) {
         int c = i % cols, r = i / cols;
         float x = 80.0f + c * (colW + gap), y = top + r * rh;
@@ -1709,7 +1938,7 @@ static void ui_build_langs(int W, int H) {
     if (g_langCount > maxVis) { char b[24]; snprintf(b, sizeof b, "+%d mais", g_langCount - maxVis); draw_text(84.0f, voltar_y - 14.0f, b, 22.0f, 0xFF8A8AA8u); }
     draw_rect(80.0f, voltar_y, 240.0f, 66.0f, 0xFF1B1B26u);
     draw_rect(80.0f, voltar_y, 5.0f, 66.0f, 0xFF7A3CFFu);
-    draw_text(110.0f, voltar_y + 44.0f, "Voltar", 32.0f, 0xFFEAEAF6u);
+    draw_text(110.0f, voltar_y + 44.0f, vc_tr("gui.back"), 32.0f, 0xFFEAEAF6u);
 }
 static int hitTestLangs(float x, float y) {
     float fw = (float)g_lastW, fh = (float)g_lastH;
@@ -1729,8 +1958,8 @@ static int hitTestLangs(float x, float y) {
 
 static void ui_build_editworld(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0xFF0A0A10u);
-    draw_text(80.0f, 96.0f, "EDITAR MUNDO", 48.0f, 0xFFF2F2FFu);
+    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_text(80.0f, 96.0f, vc_tr("EDITAR MUNDO"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 320.0f, 4.0f, 0xFF7A3CFFu);
     float fx = 80.0f, fw2 = fw - 160.0f, top = 168.0f, by = fh - 140.0f;
     float step = (by - 20.0f - top) / 3.0f;
@@ -1740,26 +1969,26 @@ static void ui_build_editworld(int W, int H) {
     float y0 = top;
     draw_rect(fx, y0, fw2, rh, (g_activeField == 1) ? 0xFF2A2A3Au : 0xCC14141Eu);
     draw_rect(fx, y0, 6.0f, rh, 0xFF7A3CFFu);
-    draw_text(fx + 28.0f, y0 + 30.0f, "Nome do mundo", 20.0f, 0xFF8A8AA8u);
+    draw_text(fx + 28.0f, y0 + 30.0f, vc_tr("selectWorld.enterName"), 20.0f, 0xFF8A8AA8u);
     draw_text(fx + 28.0f, y0 + rh - 18.0f, g_fields[0][0] ? g_fields[0] : "...", 28.0f, 0xFFEAEAF6u);
-    const char* selLabel[2] = { "Modo", "Dificuldade" };
+    const char* selLabel[2] = { "createWorldScreen.gameMode", "options.difficulty" };
     const char* selVal[2] = { CW_MODE_NAMES[g_cwMode], DIFF_NAMES[g_cwDiff] };
     int selCode[2] = { -30, -32 };
     for (int i = 0; i < 2; i++) {
         float y = top + (i + 1) * step;
         draw_rect(fx, y, fw2, rh, 0xCC14141Eu);
         draw_rect(fx, y, 6.0f, rh, 0xFF7A3CFFu);
-        draw_text(fx + 28.0f, y + rh * 0.5f + 9.0f, selLabel[i], 24.0f, 0xFFEAEAF6u);
+        draw_text(fx + 28.0f, y + rh * 0.5f + 9.0f, vc_tr(selLabel[i]), 24.0f, 0xFFEAEAF6u);
         int pressed = (g_press_region == selCode[i]);
         draw_rect(vx, y + 14.0f, vw, rh - 28.0f, pressed ? 0xFF3A2A5Au : 0xFF262636u);
-        draw_text_c(vx + vw * 0.5f, y + rh * 0.5f + 8.0f, selVal[i], 24.0f, 0xFF9A7ACFu);
+        draw_text_c(vx + vw * 0.5f, y + rh * 0.5f + 8.0f, vc_tr(selVal[i]), 24.0f, 0xFF9A7ACFu);
     }
     draw_rect(fx, by, 300.0f, 76.0f, (g_press_region == -20) ? 0xFF3A2A5Au : 0xFF2A1A4Au);
     draw_rect(fx, by, 6.0f, 76.0f, 0xFF7A3CFFu);
-    draw_text(fx + 40.0f, by + 50.0f, "Salvar", 32.0f, 0xFFEAEAF6u);
+    draw_text(fx + 40.0f, by + 50.0f, vc_tr("controllerLayoutScreen.save"), 32.0f, 0xFFEAEAF6u);
     float vxb = fw - 380.0f;
     draw_rect(vxb, by, 300.0f, 76.0f, (g_press_region == -10) ? 0xFF2A2A3Au : 0xFF1B1B26u);
-    draw_text(vxb + 40.0f, by + 50.0f, "Voltar", 32.0f, 0xFFEAEAF6u);
+    draw_text(vxb + 40.0f, by + 50.0f, vc_tr("gui.back"), 32.0f, 0xFFEAEAF6u);
 }
 static int hitTestEditWorld(float x, float y) {
     float fw = (float)g_lastW, fh = (float)g_lastH;
@@ -1800,7 +2029,7 @@ static void my_update(void* mc) {
             else if (g_screen == 3) { g_screen = 0; }
             else if (g_screen == 4) { g_screen = 2; }
             else if (g_screen == 5) { g_screen = 3; }
-            else if (g_screen == 6) { g_screen = 1; }
+            else if (g_screen == 6) { g_screen = 0; }
             else if (g_screen == 7) { g_editWorldIdx = -1; g_screen = 2; }
             else if (g_screen == 8) { g_screen = 0; }
             else if (g_screen == 9) { vc_modtext_commit(); g_screen = 8; }
@@ -1933,7 +2162,6 @@ static void h_release(void* mc) {
                 if (r >= 100) g_tab = r - 100;
                 else if (r >= 0 && r < N_OPT && g_opt[r].type == T_TGL) { float cur = opt_read(r); opt_apply(r, cur < 0.5f ? 1.0f : 0.0f); }
                 else if (r == -10) { ((void(*)(void*))VC_CALL(0x927c74u))(vc_opts()); g_screen = 0; g_tab = 0; }
-                else if (r == -50) { vc_cache_langs(); g_screen = 6; }
             }
         }
         g_press_region = R_NONE;
@@ -2013,7 +2241,7 @@ static void h_release(void* mc) {
         int r = hitTestLangs(tx, ty);
         if (r == g_press_region) {
             if (r >= 0) vc_set_lang(r);
-            else if (r == -10) g_screen = 1;
+            else if (r == -10) g_screen = 0;
         }
         g_press_region = R_NONE;
         return;
@@ -2066,8 +2294,10 @@ static void h_release(void* mc) {
     if (r != R_NONE && r == g_press_region) {
         if (r == 0) { vc_worlds_open(); g_screen = 2; }
         else if (r == 1) g_screen = 3;
-        else if (r == 2) g_screen = 1;
-        else if (r == 3) g_screen = 8;
+        else if (r == 2) g_screen = 8;
+        else if (r == -60) g_screen = 1;
+        else if (r == -61) { vc_cache_langs(); g_screen = 6; }
+        else if (r == -62) exit(0);
     }
     g_press_region = R_NONE;
 }
@@ -2120,7 +2350,7 @@ static void ui_build_ingame(int W, int H) {
         }
         float ey = py + ph - 58.0f;
         draw_rect(px + 20.0f, ey, pw - 40.0f, 46.0f, 0xFF2A1A4Au);
-        draw_text_c(px + pw * 0.5f, ey + 31.0f, "Expandir", 24.0f, 0xFFEAEAF6u);
+        draw_text_c(px + pw * 0.5f, ey + 31.0f, vc_tr("Expandir"), 24.0f, 0xFFEAEAF6u);
     }
 }
 static void my_feed(char down, char edge, short x, short y, int pid) {
