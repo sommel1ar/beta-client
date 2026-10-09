@@ -642,6 +642,7 @@ static int g_catAnimT0[CAT_COUNT] = { 0 };      // timestamp do ultimo colapsar/
 static int g_modExpanded[64] = { 0 };           // card expandido (config inline)
 static int g_modExpT0[64] = { 0 };              // timestamp do ultimo expandir/recolher (animacao)
 static int g_setDragMod = -1, g_setDragSet = -1, g_setDragPid = -1; static float g_setDragTX = 0.0f, g_setDragTW = 1.0f;  // arraste de slider inline
+static int g_setKind = 0, g_setDecided = 0; static float g_setSX = 0.0f, g_setSY = 0.0f;  // toque em setting: direcao (0=indeciso,1=slider-H,2=scroll-V)
 struct SetHit { int mod, set, kind; float x, y, w, h, tx, tw; };   // kind: 1=slider 2=toggle 3=color
 static SetHit g_setR[96]; static int g_nSetR = 0;   // zonas de toque das settings (gravadas no render)
 static const char* CAT_NAMES[CAT_COUNT] = { "HUD", "Combat", "Visual", "Player", "World", "Utility", "Misc" };
@@ -655,6 +656,7 @@ void VoidCanvas::rect(float x, float y, float w, float h, unsigned a) { draw_rec
 void VoidCanvas::text(float x, float y, const char* s, float px, unsigned a) { draw_text(x, y, s, px, a); }
 void VoidCanvas::textC(float cx, float y, const char* s, float px, unsigned a) { draw_text_c(cx, y, s, px, a); }
 void VoidCanvas::textMC(float x, float y, const char* s, float px, unsigned d) { draw_text_mc(x, y, s, px, d); }
+void VoidCanvas::round(float x, float y, float w, float h, float r, unsigned a) { draw_round(x, y, w, h, r, a); }
 float VoidCanvas::textW(const char* s, float px) { return text_width(s, px); }
 int VoidCanvas::fps() { return g_fps; }
 int VoidCanvas::screenW() { return g_lastW; }
@@ -669,35 +671,35 @@ static VSetting* vc_find_set(VoidModule* m, const char* key) {
     return nullptr;
 }
 void VoidModule::addToggle(const char* k, const char* l, bool d) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = k; s.label = l; s.type = VS_TOGGLE; s.value = d ? 1.0f : 0.0f; s.names = nullptr; s.nameCount = 0;
 }
 void VoidModule::addSlider(const char* k, const char* l, float d, float lo, float hi) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = k; s.label = l; s.type = VS_SLIDER; s.value = d; s.lo = lo; s.hi = hi; s.names = nullptr; s.nameCount = 0;
 }
 void VoidModule::addInt(const char* k, const char* l, int d, int lo, int hi) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = k; s.label = l; s.type = VS_INT; s.value = (float)d; s.lo = (float)lo; s.hi = (float)hi; s.names = nullptr; s.nameCount = 0;
 }
 void VoidModule::addDropdown(const char* k, const char* l, const char* const* names, int count, int d) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = k; s.label = l; s.type = VS_DROPDOWN; s.value = (float)d; s.names = names; s.nameCount = count;
 }
 void VoidModule::addColor(const char* k, const char* l, unsigned d) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = k; s.label = l; s.type = VS_COLOR; s.color = d; s.names = nullptr; s.nameCount = 0;
 }
 void VoidModule::addHeader(const char* l) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = ""; s.label = l; s.type = VS_HEADER; s.names = nullptr; s.nameCount = 0;
 }
 void VoidModule::addInfo(const char* l) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = ""; s.label = l; s.type = VS_INFO; s.names = nullptr; s.nameCount = 0;
 }
 void VoidModule::addText(const char* k, const char* l, const char* def, const char* ph) {
-    if (settingCount >= 16) return;
+    if (settingCount >= 24) return;
     VSetting& s = settings[settingCount++]; s.key = k; s.label = l; s.type = VS_TEXT; s.placeholder = ph; s.names = nullptr; s.nameCount = 0;
     s.textBuf[0] = 0; if (def) snprintf(s.textBuf, sizeof(s.textBuf), "%s", def);
 }
@@ -3044,7 +3046,9 @@ static void ui_build_ingame(int W, int H) {
                                 float frac = (s.hi > s.lo) ? (s.value - s.lo) / (s.hi - s.lo) : 0.0f;
                                 char vb[16];
                                 if (s.lo == 0.0f && s.hi == 100.0f) snprintf(vb, sizeof(vb), "%d%%", (int)(s.value + 0.5f));
-                                else snprintf(vb, sizeof(vb), "%.0f", s.value);
+                                else if (s.hi - s.lo <= 5.0f)  snprintf(vb, sizeof(vb), "%.2f", s.value);   // ranges pequenos (0-1, 0.5-2)
+                                else if (s.hi - s.lo <= 30.0f) snprintf(vb, sizeof(vb), "%.1f", s.value);
+                                else                           snprintf(vb, sizeof(vb), "%.0f", s.value);
                                 draw_text(px + pw - 36.0f - text_width(vb, 24.0f), lblY, vb, 24.0f, 0xFF9A9AB4u);
                                 float tx = px + 36.0f, tw = pw - 72.0f, ty = sy + 50.0f;
                                 draw_round(tx, ty, tw, 8.0f, 4.0f, 0xFF2C2A38u);
@@ -3145,19 +3149,12 @@ static void my_feed(char down, char edge, short x, short y, int pid) {
     }
     vc_ig_initpos();
     if (down && edge) {                            /* PRESS */
-        if (g_igMenu == 1) for (int z = 0; z < g_nSetR; z++) {   /* settings inline tem prioridade */
+        if (g_igMenu == 1) for (int z = 0; z < g_nSetR; z++) {   /* settings inline: ADIA (slider-H vs scroll-V) */
             SetHit& h = g_setR[z];
             if (vx < h.x || vx > h.x + h.w || vy < h.y || vy > h.y + h.h) continue;
-            VoidModule* m = g_modules[h.mod]; VSetting& s = m->settings[h.set];
-            if (h.kind == 1) {                     /* slider: inicia arraste + ja seta no X */
-                g_ourPtrs |= bit; g_setDragPid = pid; g_setDragMod = h.mod; g_setDragSet = h.set; g_setDragTX = h.tx; g_setDragTW = h.tw;
-                float f = (vx - h.tx) / h.tw; if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f;
-                s.value = s.lo + f * (s.hi - s.lo); m->onSettingChanged(s.key);
-            } else if (h.kind == 2) {              /* toggle: flip */
-                g_ourPtrs |= bit; s.value = (s.value != 0.0f) ? 0.0f : 1.0f; m->onSettingChanged(s.key); vc_modules_save();
-            } else {                               /* cor: color picker (Parte 2) */
-                g_ourPtrs |= bit; /* TODO: abrir color picker */
-            }
+            g_ourPtrs |= bit; g_setDragPid = pid; g_setDragMod = h.mod; g_setDragSet = h.set;
+            g_setDragTX = h.tx; g_setDragTW = h.tw; g_setKind = h.kind;
+            g_setSX = vx; g_setSY = vy; g_setDecided = 0; g_scrollStartScroll = g_igScroll;
             return;
         }
         int r = vc_ig_hit(vx, vy);
@@ -3182,11 +3179,26 @@ static void my_feed(char down, char edge, short x, short y, int pid) {
             return;
         }
     } else if (g_ourPtrs & bit) {                  /* MOVE/RELEASE do nosso dedo */
-        if (pid == g_setDragPid) {                 /* dedo arrastando um slider inline */
+        if (pid == g_setDragPid) {                 /* dedo num setting: decide slider-H vs scroll-V */
             VoidModule* m = g_modules[g_setDragMod]; VSetting& s = m->settings[g_setDragSet];
-            if (down && !edge) { g_setDragPid = -1; g_setDragMod = -1; g_ourPtrs &= ~bit; vc_modules_save(); return; }  /* RELEASE */
-            float f = (vx - g_setDragTX) / g_setDragTW; if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f;
-            s.value = s.lo + f * (s.hi - s.lo); m->onSettingChanged(s.key);
+            if (down && !edge) {                   /* RELEASE */
+                if (g_setDecided == 0) {           /* TAP -> aciona o setting */
+                    if (g_setKind == 1) { float f = (vx - g_setDragTX) / g_setDragTW; if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f; s.value = s.lo + f * (s.hi - s.lo); m->onSettingChanged(s.key); }
+                    else if (g_setKind == 2) { s.value = (s.value != 0.0f) ? 0.0f : 1.0f; m->onSettingChanged(s.key); }
+                    vc_modules_save();             /* kind 3 (cor) = color picker, TODO */
+                } else if (g_setDecided == 1) { vc_modules_save(); }
+                g_setDragPid = -1; g_setDragMod = -1; g_ourPtrs &= ~bit;
+                return;
+            }
+            if (g_setDecided == 0) {               /* MOVE: decide a direcao */
+                float dx = vx - g_setSX, dy = vy - g_setSY; float adx = dx < 0 ? -dx : dx, ady = dy < 0 ? -dy : dy;
+                if (ady > 12.0f && ady >= adx) {   /* vertical -> vira SCROLL do painel */
+                    g_setDecided = 2; g_scrollPid = pid; g_scrollStartY = g_setSY; g_scrollMoved = 1; g_setDragPid = -1;
+                } else if (g_setKind == 1 && adx > 8.0f) {  /* horizontal num slider -> ajusta */
+                    g_setDecided = 1;
+                }
+            }
+            if (g_setDecided == 1) { float f = (vx - g_setDragTX) / g_setDragTW; if (f < 0.0f) f = 0.0f; if (f > 1.0f) f = 1.0f; s.value = s.lo + f * (s.hi - s.lo); m->onSettingChanged(s.key); }
             return;
         }
         if (pid == g_scrollPid) {                  /* dedo no painel: rola ou aciona item */

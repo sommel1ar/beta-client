@@ -61,6 +61,7 @@ public:
     void  text(float x, float y, const char* s, float px, unsigned argb);
     void  textC(float cx, float y, const char* s, float px, unsigned argb); // centralizado em cx
     void  textMC(float x, float y, const char* s, float px, unsigned def);  // respeita cores §a7
+    void  round(float x, float y, float w, float h, float r, unsigned argb); // retangulo arredondado (SDF)
     float textW(const char* s, float px);
     int   fps();        // FPS suavizado
     int   screenW();    // largura virtual
@@ -85,7 +86,7 @@ public:
 
     // --- estado (gerenciado pelo framework) ---
     bool enabled = false;                 // ligado agora? (persistido)
-    VSetting settings[16];
+    VSetting settings[24];
     int settingCount = 0;
 
     // --- builders de settings (chame no construtor) ---
