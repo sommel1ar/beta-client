@@ -56,6 +56,9 @@ public:
     int   fps();        // FPS suavizado
     int   screenW();    // largura virtual
     int   screenH();    // altura virtual
+    float hudX();       // origem X (espaco virtual) deste modulo HUD — ANCORE seu desenho aqui (arrastavel)
+    float hudY();       // origem Y deste modulo HUD
+    float hudScale();   // escala do HUD (modo Redimensionar) — MULTIPLIQUE seus tamanhos por isto
 };
 
 // ----------------------------- VoidModule ------------------------------------
@@ -67,7 +70,8 @@ public:
     const char* description = "";         // descricao no card/config
     int         category = CAT_HUD;
     bool        defaultEnabled = false;   // ligado por padrao?
-    float       x = 24.0f, y = 24.0f;      // posicao padrao do HUD (modulos CAT_HUD)
+    float       x = 0.02f, y = 0.03f;      // posicao do HUD: FRACAO (0..1) da tela; arrastavel no modo "Editar HUD"
+    float       scale = 1.0f;              // escala do HUD (modo Redimensionar); multiplique seus tamanhos por g.hudScale()
 
     // --- estado (gerenciado pelo framework) ---
     bool enabled = false;                 // ligado agora? (persistido)
@@ -95,6 +99,7 @@ public:
     // --- callbacks (sobrescreva o que precisar) ---
     virtual void onEnable() {}                         // ligou o modulo
     virtual void onDisable() {}                        // desligou
+    virtual void onClick(int button) {}                // thread de INPUT: 1 toque de gameplay (PRESS edge nao consumido pela UI). 0.15 touch: button=0
     virtual void onTick(void* mc) {}                   // thread do JOGO, por update (~tick). mc = MinecraftClient*
     virtual void onRender(VoidCanvas& g) {}            // thread de RENDER, por frame, so IN-GAME (HUD)
     virtual void onSettingChanged(const char* key) {}  // usuario mexeu num setting

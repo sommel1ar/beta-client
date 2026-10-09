@@ -1,0 +1,88 @@
+0076217c T ChatScreen::onFocusLost()
+007623ac T ChatScreen::_closeWindow()
+016af134 B ChatScreen::sentMessages
+007621bc T ChatScreen::_hideKeyboard()
+00761c30 T ChatScreen::_showKeyboard()
+00763c04 T ChatScreen::getScreenName()
+007621ec T ChatScreen::onFocusGained()
+00762208 T ChatScreen::_buttonClicked(Button&)
+00761d44 T ChatScreen::_updateButtons()
+00763560 T ChatScreen::handleTextChar(std::string const&, bool)
+00763bc0 T ChatScreen::setTextboxText(std::string const&)
+00761c98 T ChatScreen::setupPositions()
+00763154 T ChatScreen::handleBackEvent(bool)
+007623e8 T ChatScreen::_sendChatMessage()
+007630ac T ChatScreen::_drawChatMessages(int)
+007630a0 T ChatScreen::_isKeyboardActive()
+007631c8 T ChatScreen::handleButtonPress(short)
+01546438 R ChatScreen::MAX_SAVED_MESSAGES
+00763780 T ChatScreen::_getKeyboardHeight()
+00762a9c T ChatScreen::_updateGuiMessages()
+00762a14 T ChatScreen::_guiMessagesUpdated()
+007637b4 T ChatScreen::handleCaretLocation(int)
+0154643c R ChatScreen::MAX_CHAT_MESSAGE_LENGTH
+0076378c T ChatScreen::_renderSendMessageButton()
+00760868 T ChatScreen::init()
+007629e4 T ChatScreen::tick()
+00762ab8 T ChatScreen::render(int, int, float)
+00760240 T ChatScreen::ChatScreen(MinecraftClient&, bool)
+00760240 T ChatScreen::ChatScreen(MinecraftClient&, bool)
+00760844 T ChatScreen::~ChatScreen()
+00760570 T ChatScreen::~ChatScreen()
+00760570 T ChatScreen::~ChatScreen()
+0074bb10 T GuiMessage::incrementTick()
+0074bb08 T GuiMessage::setOld()
+0074b748 T GuiMessage::GuiMessage(std::string const&, std::string const&, int, bool)
+0074ba84 T GuiMessage::GuiMessage()
+0074a530 W GuiMessage::GuiMessage(GuiMessage const&)
+0074b748 T GuiMessage::GuiMessage(std::string const&, std::string const&, int, bool)
+0074ba84 T GuiMessage::GuiMessage()
+0093ccfc T LocalPlayer::chat(std::string const&)
+0086499c T ScreenChooser::pushChatScreen()
+006c1834 T MinecraftClient::handleChatButtonRelease()
+01546e30 R SharedConstants::MaxChatLength
+00792480 T HudScreenController::isChatInLowerPosition()
+00793034 T HudScreenController::_handleNewGuiChatMessages()
+008392d8 T MinecraftScreenModel::getNewGuiChatMessages()
+0093ef4c W Player::displayChatMessage(std::string const&, std::string const&)
+0093ef50 W Player::displayClientMessage(std::string const&)
+00749ea8 T GuiData::forceMuteChat()
+00749a04 T GuiData::setIsChatting(bool)
+00749e90 T GuiData::toggleMuteChat()
+0074834c T GuiData::_insertGuiMessage(GuiMessage&)
+00748bec T GuiData::displayChatMessage(std::string const&, std::string const&)
+00749978 T GuiData::getNewChatMessages()
+00748544 T GuiData::_splitAddChatMessage(std::vector<GuiMessage, std::allocator<GuiMessage>>&, GuiMessage&)
+00748b1c T GuiData::displayClientMessage(std::string const&)
+00763778 T ChatScreen::renderGameBehind() const
+0076377c T ChatScreen::closeOnPlayerHurt() const
+0074bac8 T GuiMessage::getMessage() const
+0074bad4 T GuiMessage::getMaxTicks() const
+0074bacc T GuiMessage::isForceVisible() const
+0074bad8 T GuiMessage::getPercentComplete() const
+0074bb04 T GuiMessage::isNew() const
+0074baf4 T GuiMessage::isDead() const
+0074bac4 T GuiMessage::getUser() const
+0074bad0 T GuiMessage::getTicks() const
+0074bac0 T GuiMessage::getString() const
+0074bab0 T GuiMessage::isCommand() const
+00749244 T GuiData::isMuteChat() const
+0088db7c W std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::__shared_ptr<std::allocator<ChatScreen>, MinecraftClient&, bool>(std::_Sp_make_shared_tag, std::allocator<ChatScreen> const&, MinecraftClient&, bool&&)
+0088dcd8 W std::_Sp_counted_deleter<ChatScreen*, std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreen>>, std::allocator<ChatScreen>, (__gnu_cxx::_Lock_policy)2>::_M_destroy()
+0088dcc0 W std::_Sp_counted_deleter<ChatScreen*, std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreen>>, std::allocator<ChatScreen>, (__gnu_cxx::_Lock_policy)2>::_M_dispose()
+0088dcdc W std::_Sp_counted_deleter<ChatScreen*, std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreen>>, std::allocator<ChatScreen>, (__gnu_cxx::_Lock_policy)2>::_M_get_deleter(std::type_info const&)
+0088dcbc W std::_Sp_counted_deleter<ChatScreen*, std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreen>>, std::allocator<ChatScreen>, (__gnu_cxx::_Lock_policy)2>::~_Sp_counted_deleter()
+0088dcb8 W std::_Sp_counted_deleter<ChatScreen*, std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreen>>, std::allocator<ChatScreen>, (__gnu_cxx::_Lock_policy)2>::~_Sp_counted_deleter()
+00763d80 W GuiMessage* std::__uninitialized_copy<false>::__uninit_copy<__gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage*>(__gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, __gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage*)
+00763c84 W GuiMessage* std::__uninitialized_copy<false>::__uninit_copy<GuiMessage*, GuiMessage*>(GuiMessage*, GuiMessage*, GuiMessage*)
+0074b23c W void std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_insert_aux<GuiMessage const&>(__gnu_cxx::__normal_iterator<GuiMessage*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage const&)
+0074ad18 W void std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_insert_aux<GuiMessage>(__gnu_cxx::__normal_iterator<GuiMessage*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage&&)
+0074a328 W void std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_emplace_back_aux<GuiMessage const&>(GuiMessage const&)
+00763c28 W GuiMessage* std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_allocate_and_copy<__gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>>(unsigned int, __gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, __gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>)
+00748370 W std::vector<GuiMessage, std::allocator<GuiMessage>>::insert(__gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage const&)
+00747560 W std::vector<GuiMessage, std::allocator<GuiMessage>>::~vector()
+0076391c W std::vector<GuiMessage, std::allocator<GuiMessage>>::operator=(std::vector<GuiMessage, std::allocator<GuiMessage>> const&)
+01601c3c D vtable for ChatScreen
+01606748 V vtable for std::_Sp_counted_deleter<ChatScreen*, std::__shared_ptr<ChatScreen, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreen>>, std::allocator<ChatScreen>, (__gnu_cxx::_Lock_policy)2>
+00760854 T non-virtual thunk to ChatScreen::~ChatScreen()
+0076083c T non-virtual thunk to ChatScreen::~ChatScreen()

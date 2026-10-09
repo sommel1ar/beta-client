@@ -58,7 +58,11 @@ def door(d):
     d.line([ax1, ay, ax1-hs, ay-hs], fill=255, width=lw, joint="curve")
     d.line([ax1, ay, ax1-hs, ay+hs], fill=255, width=lw, joint="curve")
 
-ICONS = [("gear", gear), ("globe", globe), ("door", door)]
+def disc(d):
+    pad = C*0.05
+    d.ellipse([pad, pad, C-pad, C-pad], fill=255)
+
+ICONS = [("gear", gear), ("globe", globe), ("door", door), ("disc", disc)]
 
 cells = []
 for name, fn in ICONS:

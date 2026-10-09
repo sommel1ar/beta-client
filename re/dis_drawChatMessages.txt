@@ -1,0 +1,64 @@
+
+C:\modulo\minecraft\_emu32\mcpe-vanilla\lib\armeabi-v7a\libminecraftpe.so:	file format elf32-littlearm
+
+Disassembly of section .text:
+
+007630ac <_ZN10ChatScreen17_drawChatMessagesEi>:
+  7630ac: e92d 4ff0    	push.w	{r4, r5, r6, r7, r8, r9, r10, r11, lr}
+  7630b0: b081         	sub	sp, #0x4
+  7630b2: ed2d 8b02    	vpush	{d8}
+  7630b6: b086         	sub	sp, #0x18
+  7630b8: 4604         	mov	r4, r0
+  7630ba: 460d         	mov	r5, r1
+  7630bc: f8d4 60bc    	ldr.w	r6, [r4, #0xbc]
+  7630c0: f8d4 80c0    	ldr.w	r8, [r4, #0xc0]
+  7630c4: 4546         	cmp	r6, r8
+  7630c6: d03b         	beq	0x763140 <_ZN10ChatScreen17_drawChatMessagesEi+0x94> @ imm = #0x76
+  7630c8: 4820         	ldr	r0, [pc, #0x80]         @ 0x76314c <_ZN10ChatScreen17_drawChatMessagesEi+0xa0>
+  7630ca: f04f 0900    	mov.w	r9, #0x0
+  7630ce: 4920         	ldr	r1, [pc, #0x80]         @ 0x763150 <_ZN10ChatScreen17_drawChatMessagesEi+0xa4>
+  7630d0: f04f 0a01    	mov.w	r10, #0x1
+  7630d4: 4478         	add	r0, pc
+  7630d6: f851 b000    	ldr.w	r11, [r1, r0]
+  7630da: 4630         	mov	r0, r6
+  7630dc: 6e27         	ldr	r7, [r4, #0x60]
+  7630de: f63c e9dc    	blx	0x59f498 <.plt+0x8534>  @ imm = #-0x1c3c48
+  7630e2: 4601         	mov	r1, r0
+  7630e4: 68e0         	ldr	r0, [r4, #0xc]
+  7630e6: 2300         	movs	r3, #0x0
+  7630e8: 1e82         	subs	r2, r0, #0x2
+  7630ea: 4638         	mov	r0, r7
+  7630ec: f637 ee46    	blx	0x59ad7c <.plt+0x3e18>  @ imm = #-0x1c8374
+  7630f0: 1e69         	subs	r1, r5, #0x1
+  7630f2: 6e27         	ldr	r7, [r4, #0x60]
+  7630f4: 1a0d         	subs	r5, r1, r0
+  7630f6: 4630         	mov	r0, r6
+  7630f8: ec45 5b18    	vmov	d8, r5, r5
+  7630fc: f63c e9cc    	blx	0x59f498 <.plt+0x8534>  @ imm = #-0x1c3c68
+  763100: ffbb 0608    	vcvt.f32.s32	d0, d8
+  763104: 4601         	mov	r1, r0
+  763106: 68e0         	ldr	r0, [r4, #0xc]
+  763108: f04f 4280    	mov.w	r2, #0x40000000
+  76310c: f8cd b004    	str.w	r11, [sp, #0x4]
+  763110: 3802         	subs	r0, #0x2
+  763112: f8cd a008    	str.w	r10, [sp, #0x8]
+  763116: f8cd 900c    	str.w	r9, [sp, #0xc]
+  76311a: ee10 3a10    	vmov	r3, s0
+  76311e: f8cd 9010    	str.w	r9, [sp, #0x10]
+  763122: ec40 0b30    	vmov	d16, r0, r0
+  763126: f04f 30ff    	mov.w	r0, #0xffffffff
+  76312a: ffbb 0620    	vcvt.f32.s32	d0, d16
+  76312e: 9005         	str	r0, [sp, #0x14]
+  763130: 4638         	mov	r0, r7
+  763132: ed8d 0a00    	vstr	s0, [sp]
+  763136: f637 ee16    	blx	0x59ad64 <.plt+0x3e00>  @ imm = #-0x1c83d4
+  76313a: 3618         	adds	r6, #0x18
+  76313c: 45b0         	cmp	r8, r6
+  76313e: d1cc         	bne	0x7630da <_ZN10ChatScreen17_drawChatMessagesEi+0x2e> @ imm = #-0x68
+  763140: b006         	add	sp, #0x18
+  763142: ecbd 8b02    	vpop	{d8}
+  763146: b001         	add	sp, #0x4
+  763148: e8bd 8ff0    	pop.w	{r4, r5, r6, r7, r8, r9, r10, r11, pc}
+  76314c: f3a4 00f1    	<unknown>
+  763150: a9ac         	add	r1, sp, #0x2b0
+  763152: ffff e92d    	vtbl.8	d30, {d15, d16}, d29

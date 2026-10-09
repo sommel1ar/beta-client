@@ -11,24 +11,21 @@ struct FpsCounter : VoidModule {
         description    = "Mostra o FPS atual";
         defaultEnabled = true;
 
+        x = 0.02f; y = 0.03f;                  // posicao-padrao (fracao); arrastavel no "Editar HUD"
         addHeader("Aparencia");
         addToggle("fundo", "Fundo",   true);
         addSlider("tam",   "Tamanho", 28.0f, 16.0f, 48.0f);
         addColor ("cor",   "Cor",     0xFF7A3CFFu);
-        static const char* CANTOS[] = { "Sup. Esquerdo", "Sup. Direito" };
-        addDropdown("canto", "Canto", CANTOS, 2, 0);
-        addInfo("O FPS e suavizado a cada 0.5s.");
+        addInfo("Arraste no modo Editar HUD. Suavizado a cada 0.5s.");
     }
 
     void onRender(VoidCanvas& g) override {
         char buf[32];
         snprintf(buf, sizeof(buf), "%d FPS", g.fps());
-        float sz = getSlider("tam");
-        float w  = g.textW(buf, sz);
-        float x  = (getDropdown("canto") == 1) ? (g.screenW() - w - 24.0f) : 24.0f;
-        float y  = sz + 16.0f;
-        if (getToggle("fundo")) g.rect(x - 8.0f, y - sz, w + 16.0f, sz + 14.0f, 0x99060609u);
-        g.text(x, y, buf, sz, getColor("cor"));
+        float sz = getSlider("tam") * g.hudScale();
+        float ox = g.hudX(), oy = g.hudY(), w = g.textW(buf, sz);
+        if (getToggle("fundo")) g.rect(ox - 8.0f, oy, w + 16.0f, sz + 14.0f, 0x99060609u);
+        g.text(ox, oy + sz + 4.0f, buf, sz, getColor("cor"));
     }
 };
 VOID_MODULE(FpsCounter);

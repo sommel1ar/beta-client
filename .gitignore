@@ -20,3 +20,9 @@ voidclient/lib/x86/
 # native/jni/modules/        (fps_counter.cpp, fullbright.cpp, _template.cpp)
 # voidclient/                (skeleton do APK; libs do loader)
 # build.ps1  debug.keystore  DOCUMENTATION.md  CONTRIBUTING.md  README.md
+
+# lib stock do MCPE (162MB, reproduzivel do APK base) - NAO versionar
+base-stock/
+
+# libs stock extraidas p/ RE (binario grande, reproduzivel) - NAO versionar
+re/*.so

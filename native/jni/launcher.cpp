@@ -105,8 +105,7 @@ static int onPauseScreen(void* mc);
 static int onProgress(void* mc);
 static int onHud(void* mc);
 static void ui_build_ingame(int W, int H);
-static int vc_ig_hit(float vx, float vy);
-static void vc_ig_press(float vx, float vy);
+static void vc_hud_dim();
 static void ui_build_pause(int W, int H);
 static void ui_build_loading(int W, int H);
 static void ui_build_modules(int W, int H);
@@ -150,8 +149,52 @@ static GLuint g_prog, g_vbo, g_white, g_font, g_iconTex;
 static GLint g_uInvScreen, g_uTex;
 static GLuint g_blurProg, g_capTex;
 static GLint g_uBlurInv, g_uBlurTex, g_uBlurTexel;
+static GLuint g_roundProg; static GLint g_uRInv, g_uRHalf, g_uRRad, g_uRCol;
+struct RoundRect { float x, y, w, h, r; unsigned argb; };
+static RoundRect g_round[128]; static int g_nRound;
 static UIVert g_vQuad[6];
 static GLuint g_loFbo, g_loTex; static int g_loW, g_loH;
+// motion blur acumulado (efeito GL; controlado pelo modulo motion_blur via vc_mb_config)
+#define MB_MAX 6
+static GLuint g_mbTex[MB_MAX]; static int g_mbReady = 0, g_mbCount = 0, g_mbHead = 0, g_mbW = 0, g_mbH = 0;
+static int g_mbOn = 0, g_mbN = 3, g_mbDyn = 1; static float g_mbAlpha = 0.25f, g_mbBleed = 0.95f;
+// zoom (efeito FOV + botao in-game; controlado pelo modulo zoom via vc_zoom_config)
+static int g_zoomOn = 0, g_zoomSmooth = 1, g_zoomHeld = 0, g_zoomPid = -1, g_zoomActive = 0, g_zoomToggle = 0;
+static float g_zoomMult = 3.0f, g_zoomUserFov = 0.0f, g_zoomCur = 0.0f;
+static float g_zbx = -1.0f, g_zby = -1.0f;   // centro do botao Z: FRACAO (0..1); <0 = posicao-padrao
+#define ZB_R 44.0f
+// HUD arrastavel: origem do modulo atual + medicao de bbox + modo editar + arraste
+static float g_hudOX = 0.0f, g_hudOY = 0.0f;
+static int   g_hudMeasuring = 0;
+static float g_mMinX, g_mMinY, g_mMaxX, g_mMaxY;
+static float g_hudRX[64], g_hudRY[64], g_hudRW[64], g_hudRH[64];
+static int   g_hudEdit = 0, g_hudMode = 0, g_hudDragPid = -1, g_dragActive = 0, g_dragCenter = 0;  // g_hudMode: 0=Mover 1=Redimensionar
+static float* g_dragFx = nullptr; static float* g_dragFy = nullptr; static float* g_dragFs = nullptr;
+static float g_dragW = 0.0f, g_dragH = 0.0f, g_etOX = 0.0f, g_etOY = 0.0f, g_dragStartScale = 1.0f, g_dragStartFy = 0.0f;
+static float g_hudScale = 1.0f;
+// lista GENERICA de elementos editaveis (HUD + botoes da launcher). center=1 -> fx/fy e o CENTRO; fsc = escala (ou null).
+struct EditTarget { float rx, ry, rw, rh, w, h; float* fx; float* fy; float* fsc; int center; const char* name; };
+static EditTarget g_et[80]; static int g_etCount = 0;
+static float g_snapLineX = -1.0f, g_snapLineY = -1.0f;   // linha-guia azul ativa (snap), <0 = nenhuma
+#define SNAP_T 14.0f
+// hotbar: rect real do jogo (via HotBarRenderer::render). RectangleArea = {x0@0,x1@4,y0@8,y1@12} em PIXELS.
+static float g_hbPxL = 0, g_hbPxR = 0, g_hbPxT = 0, g_hbPxB = 0; static int g_hbValid = 0;
+static float g_hbVL = -1.0f, g_hbVR = -1.0f, g_hbVT = -1.0f, g_hbVB = -1.0f;   // mesmo rect em coords VIRTUAIS (snap/linhas/dim)
+typedef void (*fn_hotbar)(void*, void*, void*, int, void*);
+static fn_hotbar orig_hotbar = nullptr;
+typedef void (*fn_turntick)(void*, void*, void*, int);
+static fn_turntick orig_turntick = nullptr;   // TouchTurnInteractControl::tick (camera/ataque = area do jogo)
+// "A bola" = anel de toque (HudProgressRenderer). Suprimimos o anel nativo e
+// redesenhamos o nosso no overlay, na posicao do dedo: tamanho continuo AO VIVO,
+// 0 = invisivel, sem tocar densidade/GUI Scale (ao contrario do metodo do BlockLauncher).
+static int      g_ballOn    = 0;
+static float    g_ballSize  = 1.0f;          // 0 = invisivel ; 1 ~ nativo ; >1 maior
+static unsigned g_ballColor = 0xFFB8A8FFu;   // lavanda (ARGB)
+static volatile float g_ptrX[12], g_ptrY[12];   // posicao de cada dedo (espaco virtual do overlay)
+static volatile int   g_interactPid = -1;        // dedo de interacao (camera/ataque) via TouchTurnInteractControl+0x34; -1 = nenhum (NUNCA o joystick/botao)
+typedef int (*fn_rpi)(void*, void*, int, int, float);
+static fn_rpi orig_rpi = nullptr;            // HudProgressRenderer::_renderProgressIndicator @0x70ad68
+static float g_hbAccL = 1e9f, g_hbAccR = -1e9f, g_hbAccT = 1e9f, g_hbAccB = -1e9f;   // acumula os slots (1 frame)
 
 typedef struct { unsigned short x, y, w, h; float xoff, yoff, xadvance; } Glyph;
 typedef struct {
@@ -171,6 +214,7 @@ static VcIcons g_iconInfo;
 #define IC_GEAR 0
 #define IC_GLOBE 1
 #define IC_DOOR 2
+#define IC_DISC 3
 
 static const char* VS =
     "attribute vec2 aPos; attribute vec2 aUV; attribute vec4 aColor;"
@@ -200,6 +244,19 @@ static const char* BLUR_FS =
     "  c += (texture2D(uTex,vUV+vec2(s.x*2.0,0.0)).rgb + texture2D(uTex,vUV-vec2(s.x*2.0,0.0)).rgb) * 0.05;"
     "  c += (texture2D(uTex,vUV+vec2(0.0,s.y*2.0)).rgb + texture2D(uTex,vUV-vec2(0.0,s.y*2.0)).rgb) * 0.04;"
     "  gl_FragColor = vec4(c, 1.0);"
+    "}";
+
+// painel arredondado via SDF (smoothstep de borda, estilo Flarial). aUV = coord local [-1,1].
+static const char* ROUND_FS =
+    "precision mediump float;"
+    "uniform vec2 uHalf; uniform float uRadius; uniform vec4 uColor;"
+    "varying vec2 vUV;"
+    "void main(){"
+    "  vec2 p = vUV * uHalf;"
+    "  vec2 d = abs(p) - (uHalf - vec2(uRadius));"
+    "  float dist = min(max(d.x,d.y),0.0) + length(max(d,0.0)) - uRadius;"
+    "  float a = clamp(0.5 - dist, 0.0, 1.0);"
+    "  gl_FragColor = vec4(uColor.rgb, uColor.a * a);"
     "}";
 
 typedef struct {
@@ -312,6 +369,11 @@ static void overlay_init_gl() {
     g_uBlurInv = glGetUniformLocation(g_blurProg, "uInvScreen");
     g_uBlurTex = glGetUniformLocation(g_blurProg, "uTex");
     g_uBlurTexel = glGetUniformLocation(g_blurProg, "uTexel");
+    g_roundProg = link_prog_fs(ROUND_FS);
+    g_uRInv  = glGetUniformLocation(g_roundProg, "uInvScreen");
+    g_uRHalf = glGetUniformLocation(g_roundProg, "uHalf");
+    g_uRRad  = glGetUniformLocation(g_roundProg, "uRadius");
+    g_uRCol  = glGetUniformLocation(g_roundProg, "uColor");
     glGenBuffers(1, &g_vbo);
     const unsigned char wht[4] = { 255, 255, 255, 255 };
     g_white = make_tex_rgba(wht, 1, 1);
@@ -324,16 +386,28 @@ static void overlay_init_gl() {
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
     g_loFbo = 0; g_loTex = 0; g_loW = 0; g_loH = 0;  // forca recriar o FBO lo-res no contexto novo
+    g_mbReady = 0; g_mbCount = 0; g_mbHead = 0; g_mbW = 0; g_mbH = 0;  // ring do motion blur: recria no contexto novo
     g_glReady = 1;
     LOG("overlay GL pronto prog=%u vbo=%u white=%u font=%u icons=%u", g_prog, g_vbo, g_white, g_font, g_iconTex);
 }
 
+static float g_clipTop = -1e9f, g_clipBot = 1e9f;   // recorte vertical dos quads (default: sem recorte)
 static void push(UIVert* buf, int* n, float x, float y, float w, float h,
                  float u0, float v0, float u1, float v1, unsigned argb) {
     if (*n + 6 > MAX_V) return;
+    if (g_hudMeasuring) {                              // mede a bbox do modulo HUD atual (p/ editar/arrastar)
+        if (x < g_mMinX) g_mMinX = x; if (y < g_mMinY) g_mMinY = y;
+        if (x + w > g_mMaxX) g_mMaxX = x + w; if (y + h > g_mMaxY) g_mMaxY = y + h;
+    }
+    float oy0 = y, oy1 = y + h, ny0 = y, ny1 = y + h, nv0 = v0, nv1 = v1;
+    if (oy1 <= g_clipTop || oy0 >= g_clipBot) return;          // quad inteiro fora do recorte
+    if (oy1 > oy0) {                                            // recorta a parte que passa da borda (ajusta V)
+        if (oy0 < g_clipTop) { float t = (g_clipTop - oy0) / (oy1 - oy0); ny0 = g_clipTop; nv0 = v0 + (v1 - v0) * t; }
+        if (oy1 > g_clipBot) { float t = (g_clipBot - oy0) / (oy1 - oy0); ny1 = g_clipBot; nv1 = v0 + (v1 - v0) * t; }
+    }
     unsigned char a = argb >> 24, r = argb >> 16, g = argb >> 8, b = argb;
-    UIVert q0 = { x, y, u0, v0, r, g, b, a }, q1 = { x + w, y, u1, v0, r, g, b, a },
-           q2 = { x + w, y + h, u1, v1, r, g, b, a }, q3 = { x, y + h, u0, v1, r, g, b, a };
+    UIVert q0 = { x, ny0, u0, nv0, r, g, b, a }, q1 = { x + w, ny0, u1, nv0, r, g, b, a },
+           q2 = { x + w, ny1, u1, nv1, r, g, b, a }, q3 = { x, ny1, u0, nv1, r, g, b, a };
     UIVert* o = &buf[*n];
     o[0] = q0; o[1] = q1; o[2] = q2; o[3] = q0; o[4] = q2; o[5] = q3;
     *n += 6;
@@ -348,6 +422,54 @@ static void draw_icon(int idx, float x, float y, float sz, unsigned argb) {
 
 static void draw_rect(float x, float y, float w, float h, unsigned argb) {
     push(g_vSolid, &g_nSolid, x, y, w, h, .5f, .5f, .5f, .5f, argb);
+}
+
+// painel arredondado (SDF). Desenhado no passo vc_draw_rounds (apos o blur, ABAIXO dos accents/texto).
+// r <= 0 => retangulo nitido (serve pro tint de fundo tela-cheia). Ordem = ordem de chamada.
+static void draw_round(float x, float y, float w, float h, float r, unsigned argb) {
+    if (g_hudMeasuring) {
+        if (x < g_mMinX) g_mMinX = x; if (y < g_mMinY) g_mMinY = y;
+        if (x + w > g_mMaxX) g_mMaxX = x + w; if (y + h > g_mMaxY) g_mMaxY = y + h;
+    }
+    if (g_nRound >= 128) { draw_rect(x, y, w, h, argb); return; }
+    float m = (w < h ? w : h) * 0.5f; if (r > m) r = m; if (r < 0.0f) r = 0.0f;
+    g_round[g_nRound++] = { x, y, w, h, r, argb };
+}
+
+// --- "A bola" (anel de toque) desenhada no overlay, sem libm ---
+// tabela de circulo unitario (1024 pts) gerada 1x por rotacao incremental em double.
+#define BALL_N 1024
+static float g_ballCos[BALL_N + 1], g_ballSin[BALL_N + 1];
+static int   g_ballTbl = 0;
+static void ball_init_table() {
+    const double d  = 6.283185307179586 / BALL_N;   // passo ~0.00614 rad
+    const double d2 = d * d;
+    const double cd = 1.0 - d2 / 2.0 + d2 * d2 / 24.0;              // cos(d) Taylor (converge imediato)
+    const double sd = d - d * d2 / 6.0 + d * d2 * d2 / 120.0;      // sin(d)
+    double c = 1.0, s = 0.0;
+    for (int i = 0; i <= BALL_N; i++) {
+        g_ballCos[i] = (float)c; g_ballSin[i] = (float)s;
+        double nc = c * cd - s * sd, ns = s * cd + c * sd;
+        c = nc; s = ns;
+    }
+    g_ballTbl = 1;
+}
+static void draw_ball() {
+    if (!g_ballOn) return;
+    int p = g_interactPid;
+    if (p < 0 || p > 11) return;                 // so o dedo de interacao (camera/ataque), NUNCA joystick/botao
+    float r = 26.0f * g_ballSize;                // raio-base (virtual) * tamanho
+    if (r < 1.0f) return;                        // 0 / minusculo -> invisivel
+    if (!g_ballTbl) ball_init_table();
+    const float thick = 4.0f;                    // espessura fina constante
+    int n = (int)(r * 2.0f) + 16;                // mais pontos p/ raios grandes (sem buraco)
+    if (n < 48) n = 48; if (n > BALL_N) n = BALL_N;
+    float cx = g_ptrX[p], cy = g_ptrY[p];
+    for (int i = 0; i < n; i++) {
+        int idx = (int)((long)i * BALL_N / n);
+        float px = cx + r * g_ballCos[idx], py = cy + r * g_ballSin[idx];
+        draw_rect(px - thick * 0.5f, py - thick * 0.5f, thick, thick, g_ballColor);
+    }
 }
 
 // decodifica 1 codepoint UTF-8 e avanca o ponteiro. 3/4 bytes (CJK/etc) -> 0xFFFFFFFF (fora da fonte).
@@ -483,6 +605,9 @@ float VoidCanvas::textW(const char* s, float px) { return text_width(s, px); }
 int VoidCanvas::fps() { return g_fps; }
 int VoidCanvas::screenW() { return g_lastW; }
 int VoidCanvas::screenH() { return g_lastH; }
+float VoidCanvas::hudX() { return g_hudOX; }
+float VoidCanvas::hudY() { return g_hudOY; }
+float VoidCanvas::hudScale() { return g_hudScale; }
 
 // ---- VoidModule: settings ----
 static VSetting* vc_find_set(VoidModule* m, const char* key) {
@@ -551,6 +676,7 @@ static void vc_modules_save() {
     for (int i = 0; i < g_moduleCount; i++) {
         VoidModule* m = g_modules[i];
         fprintf(f, "%s.enabled=%d\n", m->id, m->enabled ? 1 : 0);
+        if (m->category == CAT_HUD) { fprintf(f, "%s.hudx=%g\n", m->id, m->x); fprintf(f, "%s.hudy=%g\n", m->id, m->y); fprintf(f, "%s.huds=%g\n", m->id, m->scale); }
         for (int j = 0; j < m->settingCount; j++) {
             VSetting& s = m->settings[j];
             if (s.type == VS_HEADER || s.type == VS_INFO) continue;
@@ -559,6 +685,8 @@ static void vc_modules_save() {
             else fprintf(f, "%s.%s=%g\n", m->id, s.key, s.value);
         }
     }
+    if (g_zbx >= 0.0f) fprintf(f, "_zoombtn.x=%g\n", g_zbx);   // posicao do botao Z (fracao do centro)
+    if (g_zby >= 0.0f) fprintf(f, "_zoombtn.y=%g\n", g_zby);
     fclose(f);
 }
 static void vc_modules_load() {
@@ -572,10 +700,14 @@ static void vc_modules_load() {
         *dot = 0; *eq = 0;
         const char* mid = line; const char* key = dot + 1; char* val = eq + 1;
         for (char* p = val; *p; p++) { if (*p == '\n' || *p == '\r') { *p = 0; break; } }
+        if (!strcmp(mid, "_zoombtn")) { if (!strcmp(key, "x")) g_zbx = (float)atof(val); else if (!strcmp(key, "y")) g_zby = (float)atof(val); continue; }
         for (int i = 0; i < g_moduleCount; i++) {
             VoidModule* m = g_modules[i];
             if (strcmp(m->id, mid)) continue;
             if (!strcmp(key, "enabled")) { m->enabled = atoi(val) != 0; break; }
+            if (!strcmp(key, "hudx")) { m->x = (float)atof(val); break; }
+            if (!strcmp(key, "hudy")) { m->y = (float)atof(val); break; }
+            if (!strcmp(key, "huds")) { m->scale = (float)atof(val); break; }
             VSetting* s = vc_find_set(m, key);
             if (s) {
                 if (s->type == VS_COLOR) s->color = (unsigned)strtoul(val, nullptr, 10);
@@ -594,7 +726,22 @@ static void vc_modules_tick(void* mc) {
     for (int i = 0; i < g_moduleCount; i++) if (g_modules[i]->enabled) g_modules[i]->onTick(mc);
 }
 static void vc_modules_render_hud(VoidCanvas& g) {
-    for (int i = 0; i < g_moduleCount; i++) if (g_modules[i]->enabled) g_modules[i]->onRender(g);
+    for (int i = 0; i < g_moduleCount; i++) {
+        VoidModule* m = g_modules[i];
+        if (!m->enabled) continue;
+        if (m->category == CAT_HUD) {                  // ancora na posicao (fracao) + escala + mede a bbox
+            g_hudOX = m->x * (float)g_lastW; g_hudOY = m->y * (float)g_lastH; g_hudScale = m->scale;
+            g_mMinX = 1e9f; g_mMinY = 1e9f; g_mMaxX = -1e9f; g_mMaxY = -1e9f;
+            g_hudMeasuring = 1; m->onRender(g); g_hudMeasuring = 0;
+            if (g_mMaxX > g_mMinX) { g_hudRX[i] = g_mMinX; g_hudRY[i] = g_mMinY; g_hudRW[i] = g_mMaxX - g_mMinX; g_hudRH[i] = g_mMaxY - g_mMinY; }
+            else { g_hudRW[i] = 0.0f; g_hudRH[i] = 0.0f; }
+        } else {
+            m->onRender(g);
+        }
+    }
+}
+static void vc_modules_click(int button) {
+    for (int i = 0; i < g_moduleCount; i++) if (g_modules[i]->enabled) g_modules[i]->onClick(button);
 }
 static void vc_mod_set_enabled(VoidModule* m, bool on) {
     if (m->enabled == on) return;
@@ -606,7 +753,7 @@ static void vc_mod_set_enabled(VoidModule* m, bool on) {
 // ---- tela de Modulos (cards por categoria) ----
 static void ui_build_modules(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(40.0f, 74.0f, "Mods", 44.0f, 0xFFF2F2FFu);
     draw_rect(40.0f, 90.0f, 150.0f, 4.0f, 0xFF7A3CFFu);
     // tabs de categoria
@@ -614,7 +761,7 @@ static void ui_build_modules(int W, int H) {
     for (int c = 0; c < CAT_COUNT; c++) {
         float tw = text_width(vc_tr(CAT_NAMES[c]), 24.0f) + 36.0f;
         unsigned bg = (c == g_modCat) ? 0xFF7A3CFFu : 0xCC1A1A26u;
-        draw_rect(tx, ty, tw, th, bg);
+        draw_round(tx, ty, tw, th, th * 0.5f, bg);
         draw_text(tx + 18.0f, ty + 35.0f, vc_tr(CAT_NAMES[c]), 24.0f, 0xFFEAEAF6u);
         tx += tw + 10.0f;
     }
@@ -624,18 +771,18 @@ static void ui_build_modules(int W, int H) {
         VoidModule* m = g_modules[i];
         if (m->category != g_modCat) continue;
         if (cardY + cardH > fh - 100.0f) break;
-        draw_rect(cardX, cardY, cardW, cardH, 0xEE141420u);
-        draw_rect(cardX, cardY, 6.0f, cardH, m->enabled ? 0xFF7A3CFFu : 0xFF3A3A4Au);
+        draw_round(cardX, cardY, cardW, cardH, 16.0f, 0xEE141420u);
+        draw_round(cardX, cardY + 14.0f, 6.0f, cardH - 28.0f, 3.0f, m->enabled ? 0xFF7A3CFFu : 0xFF3A3A4Au);
         draw_text(cardX + 28.0f, cardY + 40.0f, m->name, 28.0f, 0xFFF2F2FFu);
         if (m->description[0]) draw_text(cardX + 28.0f, cardY + 72.0f, m->description, 20.0f, 0xFF9A9ABF);
         if (m->settingCount > 0) draw_text(cardX + cardW - 320.0f, cardY + cardH * 0.5f + 8.0f, vc_tr("Configurar"), 22.0f, 0xFF8A8AB0u);
         // toggle pill a direita
         float pw = 120.0f, px = cardX + cardW - pw - 20.0f, pyy = cardY + cardH * 0.5f - 24.0f, ph = 48.0f;
-        draw_rect(px, pyy, pw, ph, m->enabled ? 0xFF2E7D32u : 0xFF3A2A2Au);
+        draw_round(px, pyy, pw, ph, ph * 0.5f, m->enabled ? 0xFF2E7D32u : 0xFF3A2A2Au);
         draw_text_c(px + pw * 0.5f, pyy + 32.0f, m->enabled ? "ON" : "OFF", 24.0f, 0xFFFFFFFFu);
         cardY += cardH + gap;
     }
-    draw_rect(40.0f, fh - 78.0f, 200.0f, 54.0f, 0xCC1A1A26u);
+    draw_round(40.0f, fh - 78.0f, 200.0f, 54.0f, 14.0f, 0xCC1A1A26u);
     draw_text(68.0f, fh - 42.0f, vc_tr("gui.back"), 26.0f, 0xFFEAEAF6u);
 }
 static int hitTestModules(float x, float y) {
@@ -670,7 +817,7 @@ static void vc_modcfg_fmt(VSetting& s, char* buf, int n) {
 }
 static void ui_build_modcfg(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     VoidModule* m = (g_cfgModule >= 0 && g_cfgModule < g_moduleCount) ? g_modules[g_cfgModule] : nullptr;
     if (!m) return;
     draw_text(40.0f, 74.0f, m->name, 40.0f, 0xFFF2F2FFu);
@@ -691,7 +838,7 @@ static void ui_build_modcfg(int W, int H) {
             ry += 42.0f; continue;
         }
         if (ry + rh > fh - 100.0f) break;
-        draw_rect(rx, ry, rw, rh - 10.0f, 0xEE141420u);
+        draw_round(rx, ry, rw, rh - 10.0f, 16.0f, 0xEE141420u);
         draw_text(rx + 24.0f, ry + 40.0f, s.label, 26.0f, 0xFFEAEAF6u);
         if (s.type == VS_TEXT) {
             bool ed = (g_modTextEdit == i && g_activeField == 1);
@@ -715,7 +862,7 @@ static void ui_build_modcfg(int W, int H) {
         }
         ry += rh;
     }
-    draw_rect(40.0f, fh - 78.0f, 200.0f, 54.0f, 0xCC1A1A26u);
+    draw_round(40.0f, fh - 78.0f, 200.0f, 54.0f, 14.0f, 0xCC1A1A26u);
     draw_text(68.0f, fh - 42.0f, vc_tr("gui.back"), 26.0f, 0xFFEAEAF6u);
 }
 static const unsigned VC_PALETTE[8] = { 0xFF7A3CFFu, 0xFFFFFFFFu, 0xFFFF5555u, 0xFF55FF55u, 0xFF55AAFFu, 0xFFFFFF55u, 0xFFFF9A3Cu, 0xFF000000u };
@@ -791,28 +938,28 @@ static void ui_build(int W, int H) {
     if (g_screen == 7) { ui_build_editworld(W, H); return; }
     if (onProgress(g_mc)) { ui_build_loading(W, H); return; }
     if (onPauseScreen(g_mc)) { ui_build_pause(W, H); return; }
-    if (onHud(g_mc)) { VoidCanvas g; vc_modules_render_hud(g); ui_build_ingame(W, H); return; }
+    if (onHud(g_mc)) { VoidCanvas g; if (g_hudEdit) vc_hud_dim(); if (!g_igMenu) { vc_modules_render_hud(g); if (!g_hudEdit) draw_ball(); } ui_build_ingame(W, H); return; }  /* painel aberto -> esconde HUD; editar -> tela escura sob o HUD */
     float fw = (float)W, fh = (float)H, cx = fw * 0.5f;
     int mel = g_menuT0 ? (vc_now_ms() - g_menuT0) : 0;
     unsigned ma;
     if (mel < 1000) ma = 0xFFu;
     else if (mel < 1500) ma = 0xFFu - (unsigned)((mel - 1000) * 0x7F / 500);
     else ma = 0x80u;
-    draw_rect(0, 0, fw, fh, (ma << 24) | 0x100A1Cu);
+    draw_round(0, 0, fw, fh, 0.0f, (ma << 24) | 0x100A1Cu);
     draw_text_c(cx, fh * 0.26f, "VOID CLIENT", 54.0f, 0xFFF2F2FFu);
     draw_rect(cx - 90.0f, fh * 0.26f + 20.0f, 180.0f, 4.0f, 0xFF7A3CFFu);
     float pw = 640.0f, px = cx - pw * 0.5f, ph = 70.0f, gap = 20.0f;
     float py = fh * 0.46f;
     for (int i = 0; i < N_MENU; i++) {
         unsigned bg = (i == g_press_region) ? 0xEE2A2A3Au : 0xCC12121Bu;
-        draw_rect(px, py, pw, ph, bg);
-        draw_rect(px, py, 6.0f, ph, 0xFF7A3CFFu);
+        draw_round(px, py, pw, ph, 16.0f, bg);
+        draw_round(px, py + 14.0f, 6.0f, ph - 28.0f, 3.0f, 0xFF7A3CFFu);
         draw_text_c(cx + 3.0f, py + ph * 0.5f + 10.0f, g_menuKey[i] ? vc_tr(g_menuKey[i]) : g_menu[i], 30.0f, 0xFFEAEAF6u);
         py += ph + gap;
     }
     for (int i = 0; i < 3; i++) {
         float bx, by, bs; vc_icobtn(i, fw, fh, &bx, &by, &bs);
-        draw_rect(bx, by, bs, bs, (g_press_region == IC_REG[i]) ? 0xEE2A2A3Au : 0xCC12121Bu);
+        draw_round(bx, by, bs, bs, 16.0f, (g_press_region == IC_REG[i]) ? 0xEE2A2A3Au : 0xCC12121Bu);
         draw_rect(bx, by, bs, 5.0f, 0xFF7A3CFFu);
         float pad = bs * 0.22f;
         draw_icon(IC_BTN[i], bx + pad, by + pad, bs - 2.0f * pad, 0xFFEAEAF6u);
@@ -825,6 +972,29 @@ static void segment(UIVert* buf, int n, GLuint tex) {
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(n * (int)sizeof(UIVert)), buf, GL_STREAM_DRAW);
     glBindTexture(GL_TEXTURE_2D, tex);
     glDrawArrays(GL_TRIANGLES, 0, n);
+}
+
+// desenha os paineis arredondados (apos o blur, antes dos accents/texto). Mantem g_vbo + attribs.
+static void vc_draw_rounds() {
+    if (g_nRound <= 0) return;
+    glUseProgram(g_roundProg);
+    glUniform2f(g_uRInv, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
+    for (int i = 0; i < g_nRound; i++) {
+        RoundRect& q = g_round[i];
+        float x0 = q.x, y0 = q.y, x1 = q.x + q.w, y1 = q.y + q.h;
+        UIVert* v = g_vQuad;
+        v[0] = { x0, y0, -1, -1, 0, 0, 0, 0 }; v[1] = { x1, y0, 1, -1, 0, 0, 0, 0 }; v[2] = { x1, y1, 1, 1, 0, 0, 0, 0 };
+        v[3] = { x0, y0, -1, -1, 0, 0, 0, 0 }; v[4] = { x1, y1, 1, 1, 0, 0, 0, 0 }; v[5] = { x0, y1, -1, 1, 0, 0, 0, 0 };
+        unsigned a = q.argb >> 24, r = (q.argb >> 16) & 0xFF, g = (q.argb >> 8) & 0xFF, b = q.argb & 0xFF;
+        glUniform2f(g_uRHalf, q.w * 0.5f, q.h * 0.5f);
+        glUniform1f(g_uRRad, q.r);
+        glUniform4f(g_uRCol, r / 255.0f, g / 255.0f, b / 255.0f, a / 255.0f);
+        glBufferData(GL_ARRAY_BUFFER, 6 * (int)sizeof(UIVert), g_vQuad, GL_STREAM_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+    }
+    glUseProgram(g_prog);
+    glUniform2f(g_uInvScreen, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
+    glUniform1i(g_uTex, 0);
 }
 
 // frosted glass: captura o framebuffer do jogo e desenha MUITO borrado por baixo da UI.
@@ -848,6 +1018,14 @@ static void vc_blur_ensure(int LW, int LH) {
 static void vc_blur_quad(float w, float h, float v0, float v1) {
     int n = 0;
     push(g_vQuad, &n, 0.0f, 0.0f, w, h, 0.0f, v0, 1.0f, v1, 0xFFFFFFFFu);
+    glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(6 * (int)sizeof(UIVert)), g_vQuad, GL_STREAM_DRAW);
+    glDrawArrays(GL_TRIANGLES, 0, 6);
+}
+// faixa borrada arbitraria (p/ deixar um BURACO na hotbar: so borra ao redor dela)
+static void vc_blur_strip(float x, float y, float w, float h, float W, float H) {
+    if (w <= 0.0f || h <= 0.0f) return;
+    int n = 0;
+    push(g_vQuad, &n, x, y, w, h, x / W, y / H, (x + w) / W, (y + h) / H, 0xFFFFFFFFu);
     glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(6 * (int)sizeof(UIVert)), g_vQuad, GL_STREAM_DRAW);
     glDrawArrays(GL_TRIANGLES, 0, 6);
 }
@@ -877,22 +1055,138 @@ static void vc_blur_bg(int W, int H) {
     glUniform2f(g_uBlurInv, 2.0f / (float)W, 2.0f / (float)H);
     glUniform2f(g_uBlurTexel, 1.0f / (float)LW, 1.0f / (float)LH);
     glBindTexture(GL_TEXTURE_2D, g_loTex);
-    vc_blur_quad((float)W, (float)H, 0.0f, 1.0f);
+    if (g_hudEdit && g_hbValid) {                 // buraco na hotbar: so borra AO REDOR (hotbar original fica nitida)
+        float hl = g_hbPxL, hr = g_hbPxR, ht = g_hbPxT, hb = g_hbPxB;
+        if (hl < 0) hl = 0; if (ht < 0) ht = 0; if (hr > (float)W) hr = (float)W; if (hb > (float)H) hb = (float)H;
+        vc_blur_strip(0.0f, 0.0f, (float)W, ht, (float)W, (float)H);                 // topo
+        vc_blur_strip(0.0f, hb, (float)W, (float)H - hb, (float)W, (float)H);        // base
+        vc_blur_strip(0.0f, ht, hl, hb - ht, (float)W, (float)H);                    // esquerda
+        vc_blur_strip(hr, ht, (float)W - hr, hb - ht, (float)W, (float)H);           // direita
+    } else {
+        vc_blur_quad((float)W, (float)H, 0.0f, 1.0f);
+    }
     glEnable(GL_BLEND);
     glUseProgram(g_prog);
     glUniform2f(g_uInvScreen, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
     glUniform1i(g_uTex, 0);
 }
 
+// motion blur acumulado: desenha os ultimos N quadros por cima da cena (FB0) com alpha
+// decrescente (mais antigo = mais forte, estilo Flarial), depois captura o quadro atual pro ring.
+static void vc_mb_ensure(int W, int H) {
+    if (g_mbReady && g_mbW == W && g_mbH == H) return;
+    if (!g_mbReady) glGenTextures(MB_MAX, g_mbTex);
+    for (int i = 0; i < MB_MAX; i++) {                              // aloca 1x (ou na troca de resolucao)
+        glBindTexture(GL_TEXTURE_2D, g_mbTex[i]);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
+        glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+        glTexImage2D(GL_TEXTURE_2D, 0, GL_RGB, W, H, 0, GL_RGB, GL_UNSIGNED_BYTE, nullptr);
+    }
+    g_mbReady = 1; g_mbW = W; g_mbH = H; g_mbCount = 0; g_mbHead = 0;
+}
+extern "C" void vc_mb_config(int on, int frames, float alpha, float bleed, int dynamic) {
+    g_mbOn = on;
+    g_mbN = frames < 1 ? 1 : (frames > MB_MAX ? MB_MAX : frames);
+    g_mbAlpha = alpha; g_mbBleed = bleed; g_mbDyn = dynamic;
+    if (!on) { g_mbCount = 0; g_mbHead = 0; }
+}
+static void vc_mb_frame(int W, int H) {
+    vc_mb_ensure(W, H);
+    int n = g_mbN;
+    if (g_mbDyn) {                                                  // N dinamico: so corta em stutter REAL (base 60)
+        int f = g_fps;
+        if (f > 0) { if (f < 30) n = 1; else if (f < 45 && n > 2) n = 2; }
+    }
+    if (n < 1) n = 1; if (n > MB_MAX) n = MB_MAX;
+    if (g_mbCount > n) g_mbCount = n;
+    if (g_mbHead >= n) g_mbHead = 0;
+
+    // captura o quadro atual PRIMEIRO (entra na mistura deste frame; sem realocar)
+    glBindFramebuffer(GL_FRAMEBUFFER, 0);
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, g_mbTex[g_mbHead]);
+    glCopyTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0, 0, 0, W, H);
+    g_mbHead = (g_mbHead + 1) % n;
+    if (g_mbCount < n) g_mbCount++;
+
+    glViewport(0, 0, W, H);
+    glUseProgram(g_prog);
+    glUniform2f(g_uInvScreen, 2.0f / (float)W, 2.0f / (float)H);  // quad em espaco de PIXEL
+    glUniform1i(g_uTex, 0);
+    glEnable(GL_BLEND); glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA); glBlendEquation(GL_FUNC_ADD);
+    // over-blend (metodo do Flarial): a cena atual (FB0) fica NITIDA por baixo e os
+    // quadros anteriores entram como ecos fracos com alpha decrescente.
+    float a = g_mbAlpha;
+    for (int k = 0; k < g_mbCount; k++) {                           // ordem cronologica (mais antigo -> mais novo)
+        int idx = ((g_mbHead - g_mbCount + k) % n + n) % n;
+        unsigned col = ((unsigned)(a * 255.0f + 0.5f) << 24) | 0x00FFFFFFu;
+        glBindTexture(GL_TEXTURE_2D, g_mbTex[idx]);
+        int nn = 0; push(g_vQuad, &nn, 0.0f, 0.0f, (float)W, (float)H, 0.0f, 1.0f, 1.0f, 0.0f, col); // V invertido (FB->tex)
+        glBufferData(GL_ARRAY_BUFFER, (GLsizeiptr)(6 * (int)sizeof(UIVert)), g_vQuad, GL_STREAM_DRAW);
+        glDrawArrays(GL_TRIANGLES, 0, 6);
+        a *= g_mbBleed;
+    }
+    glUseProgram(g_prog);                                          // restaura escala virtual pros segmentos
+    glUniform2f(g_uInvScreen, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
+    glUniform1i(g_uTex, 0);
+}
+
+// zoom: botao "Z" fixo na direita (segura=zoom). FOV em opts+0xe4 (o jogo rele por frame).
+static float vc_zoom_bx() { return (g_zbx < 0.0f) ? ((float)g_lastW - ZB_R - 30.0f) : (g_zbx * (float)g_lastW); }
+static float vc_zoom_by() { return (g_zby < 0.0f) ? ((float)g_lastH * 0.62f) : (g_zby * (float)g_lastH); }
+static int vc_zoom_hit(float vx, float vy) {
+    if (!g_zoomOn) return 0;
+    float dx = vx - vc_zoom_bx(), dy = vy - vc_zoom_by();
+    return (dx * dx + dy * dy <= ZB_R * ZB_R) ? 1 : 0;
+}
+static void vc_zoom_apply() {
+    void* opts = g_mc ? *(void**)((char*)g_mc + 0x13c) : nullptr;   // getOptions (mc+0x13c)
+    if (!opts) { g_zoomActive = 0; return; }
+    float* pf = (float*)((char*)opts + 0xe4);                       // FOV (graus)
+    int want = (g_zoomOn && g_zoomHeld);
+    if (want && !g_zoomActive) { g_zoomUserFov = *pf; g_zoomCur = *pf; g_zoomActive = 1; }  // salva FOV do usuario
+    if (!g_zoomActive) return;
+    float mult = g_zoomMult < 1.1f ? 1.1f : g_zoomMult;
+    float target = want ? (g_zoomUserFov / mult) : g_zoomUserFov;
+    if (target < 10.0f) target = 10.0f;
+    if (g_zoomSmooth) g_zoomCur += (target - g_zoomCur) * 0.25f; else g_zoomCur = target;
+    if (!want && g_zoomCur >= g_zoomUserFov - 0.3f) { *pf = g_zoomUserFov; g_zoomActive = 0; }  // voltou ao normal
+    else *pf = g_zoomCur;
+}
+extern "C" void vc_zoom_config(int on, float mult, int smooth, int toggle) {
+    g_zoomOn = on; g_zoomMult = mult; g_zoomSmooth = smooth; g_zoomToggle = toggle;
+    if (!on) g_zoomHeld = 0;   // a animacao de volta ao FOV do usuario termina sozinha em vc_zoom_apply
+}
+
 static void overlay_frame(int W, int H) {
     g_pixelH = H;
+    if (g_hbAccR > g_hbAccL) {                        // finaliza a hotbar do frame: GUI -> pixel (GuiScale)
+        float gs = ((float (*)(void*))vc_call(0x749714u))(nullptr);   // GuiData::getGuiScale (ignora o this)
+        if (gs < 0.5f) gs = 1.0f;
+        g_hbPxL = g_hbAccL * gs; g_hbPxR = g_hbAccR * gs; g_hbPxT = g_hbAccT * gs; g_hbPxB = g_hbAccB * gs;
+        float sw = (g_hbPxR - g_hbPxL) / 9.0f;        // 1 slot; estende pra cobrir o botao de inventario (10o, a direita)
+        g_hbPxR += sw * 1.1f;
+        g_hbValid = 1;
+        static int lg = 0; if (!lg) { lg = 1; LOG("hotbar px L=%.0f R=%.0f T=%.0f B=%.0f gs=%.2f H=%d", g_hbPxL, g_hbPxR, g_hbPxT, g_hbPxB, gs, H); }
+    }
+    g_hbAccL = 1e9f; g_hbAccR = -1e9f; g_hbAccT = 1e9f; g_hbAccB = -1e9f;
+    if (g_hbValid && g_pixelH > 0) {                 // hotbar em coords VIRTUAIS (snap + dim com buraco)
+        float k = (1080.0f / (float)g_pixelH) / g_optMult;
+        g_hbVL = g_hbPxL * k; g_hbVR = g_hbPxR * k; g_hbVT = g_hbPxT * k; g_hbVB = g_hbPxB * k;
+    }
     { static int t0 = 0, fr = 0; int now = vc_now_ms(); fr++; if (!t0) t0 = now; if (now - t0 >= 500) { g_fps = fr * 1000 / (now - t0); fr = 0; t0 = now; } }
     float vh = 1080.0f / g_optMult, vw = vh * (float)W / (float)H;
     g_lastW = (int)(vw + 0.5f); g_lastH = (int)vh;
-    g_nSolid = 0; g_nText = 0; g_nIcon = 0;
+    g_nSolid = 0; g_nText = 0; g_nIcon = 0; g_nRound = 0;
     ui_build(g_lastW, g_lastH);
-    int doBlur = ((g_screen >= 1 && g_screen <= 9) || onPauseScreen(g_mc));
-    if (!g_nSolid && !g_nText && !g_nIcon && !doBlur) return;
+    int doBlur = ((g_screen >= 1 && g_screen <= 9) || onPauseScreen(g_mc));   // (sem blur no Editar HUD)
+    int doMB = (g_mbOn && onHud(g_mc));
+    if (!doMB) { g_mbCount = 0; g_mbHead = 0; }   // limpa ring fora do jogo (evita salto ao voltar)
+    vc_zoom_apply();                              // anima/aplica o FOV do zoom todo frame in-game
+    if (g_hudEdit && g_mc && !onHud(g_mc)) { g_hudEdit = 0; vc_modules_save(); }   // saiu do jogo -> fecha edicao
+    if (!g_nSolid && !g_nText && !g_nIcon && !doBlur && !doMB) return;
 
     glUseProgram(g_prog);
     glBindBuffer(GL_ARRAY_BUFFER, g_vbo);
@@ -910,11 +1204,13 @@ static void overlay_frame(int W, int H) {
     glUniform2f(g_uInvScreen, 2.0f / (float)g_lastW, 2.0f / (float)g_lastH);
     glActiveTexture(GL_TEXTURE0); glUniform1i(g_uTex, 0);
 
-    if (doBlur) vc_blur_bg(W, H);
+    if (doBlur) vc_blur_bg(W, H);                 // (no modo editar, deixa buraco na hotbar = ela fica nitida)
+    if (doMB) vc_mb_frame(W, H);
 
+    vc_draw_rounds();                             // paineis arredondados (frosted) entre o blur e os accents/texto
     segment(g_vSolid, g_nSolid, g_white);
-    segment(g_vText, g_nText, g_font);
     segment(g_vIcon, g_nIcon, g_iconTex);
+    segment(g_vText, g_nText, g_font);
 }
 
 static void gl_save(GLSaved* s) {
@@ -1533,7 +1829,7 @@ static void vc_edit_world(int idx, const char* name, int mode, int diff) {
 
 static void ui_build_options(int W, int H) {
     float fw = (float)W, fh = (float)H, cx = 80.0f, cw = fw * 0.40f;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(80.0f, 96.0f, vc_tr("options.title"), 48.0f, 0xFFF2F2FFu);
     for (int t = 0; t < 3; t++) {
         float bx = 80.0f + t * 212.0f;
@@ -1611,7 +1907,7 @@ static const char* PAUSE_BTN[3] = { "menu.returnToGame", "pauseScreen.options", 
 
 static void ui_build_pause(int W, int H) {
     float fw = (float)W, fh = (float)H, cx = fw * 0.5f;
-    draw_rect(0, 0, fw, fh, 0x99060609u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060609u);
     draw_text_c(cx, fh * 0.24f, "VOID CLIENT", 44.0f, 0xFFF2F2FFu);
     draw_rect(cx - 72.0f, fh * 0.24f + 16.0f, 144.0f, 3.0f, 0xFF7A3CFFu);
     float pw = 640.0f, px = cx - pw * 0.5f, ph = 70.0f, gap = 22.0f;
@@ -1638,7 +1934,7 @@ static int hitTestPause(float x, float y) {
 
 static void ui_build_worlds(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(80.0f, 96.0f, vc_tr("menu.singleplayer"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 320.0f, 4.0f, 0xFF7A3CFFu);
     float rows_top = 172.0f, voltar_y = fh - 100.0f, rh = 100.0f;
@@ -1666,7 +1962,7 @@ static void ui_build_worlds(int W, int H) {
 
 static void ui_build_servers(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(80.0f, 96.0f, vc_tr("menu.multiplayer"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 300.0f, 4.0f, 0xFF7A3CFFu);
     float rows_top = 172.0f, voltar_y = fh - 100.0f, rh = 120.0f;
@@ -1713,7 +2009,7 @@ static void ui_build_servers(int W, int H) {
 
 static void ui_build_loading(int W, int H) {
     float fw = (float)W, fh = (float)H, cx = fw * 0.5f;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text_c(cx, fh * 0.40f, "VOID CLIENT", 52.0f, 0xFFF2F2FFu);
     draw_rect(cx - 90.0f, fh * 0.40f + 22.0f, 180.0f, 4.0f, 0xFF7A3CFFu);
     if (g_loadMsg[0]) draw_text_c(cx, fh * 0.50f, g_loadMsg, 26.0f, 0xFF9A7ACFu);
@@ -1763,7 +2059,7 @@ static int hitTestServers(float x, float y) {
 
 static void ui_build_createworld(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     int editing = (g_editWorldIdx >= 0);
     draw_text(80.0f, 96.0f, editing ? vc_tr("Editar Mundo") : vc_tr("selectWorld.newWorld"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 300.0f, 4.0f, 0xFF7A3CFFu);
@@ -1829,7 +2125,7 @@ static int hitTestCreateWorld(float x, float y) {
 
 static void ui_build_srvform(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(80.0f, 96.0f, g_editServerId ? vc_tr("EDITAR SERVIDOR") : vc_tr("ADICIONAR SERVIDOR"), 44.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 360.0f, 4.0f, 0xFF7A3CFFu);
     static const char* labs[3] = { "Nome", "Endereco / IP", "Porta" };
@@ -1917,7 +2213,7 @@ static void vc_set_lang(int i) {
 }
 static void ui_build_langs(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(80.0f, 96.0f, vc_tr("options.language"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 200.0f, 4.0f, 0xFF7A3CFFu);
     float top = 168.0f, voltar_y = fh - 100.0f, rh = 78.0f;
@@ -1958,7 +2254,7 @@ static int hitTestLangs(float x, float y) {
 
 static void ui_build_editworld(int W, int H) {
     float fw = (float)W, fh = (float)H;
-    draw_rect(0, 0, fw, fh, 0x99060610u);
+    draw_round(0, 0, fw, fh, 0.0f, 0x99060610u);
     draw_text(80.0f, 96.0f, vc_tr("EDITAR MUNDO"), 48.0f, 0xFFF2F2FFu);
     draw_rect(80.0f, 120.0f, 320.0f, 4.0f, 0xFF7A3CFFu);
     float fx = 80.0f, fw2 = fw - 160.0f, top = 168.0f, by = fh - 140.0f;
@@ -2305,74 +2601,355 @@ static void h_release(void* mc) {
 typedef void (*fn_feed)(char, char, short, short, int);
 static fn_feed orig_feed = nullptr;
 
-#define IG_BCX 70.0f
 #define IG_BR 46.0f
+#define IG_DRAG2 (14.0f * 14.0f)     /* limiar de arraste^2 (espaco virtual) */
+static float g_igX = -1.0f, g_igY = -1.0f;   /* centro da bolha (virtual) */
+static int g_dragPid = -1;                   /* dedo na bolha (pendente tap/arraste) */
+static float g_dragSX = 0, g_dragSY = 0, g_dragOX = 0, g_dragOY = 0;
+static int g_dragMoved = 0;
+static float g_igScroll = 0.0f;              /* rolagem da lista de mods no painel */
+static int g_scrollPid = -1, g_scrollMoved = 0, g_scrollHitR = -1;
+static float g_scrollStartY = 0.0f, g_scrollStartScroll = 0.0f;
+#define IG_RH 58.0f
+
+static void vc_ig_initpos() {
+    if (g_igX < 0.0f) { g_igX = IG_BR + 30.0f; g_igY = (float)g_lastH * 0.42f; }
+}
+static void vc_ig_clamp() {
+    float w = (float)g_lastW, h = (float)g_lastH;
+    if (g_igX < IG_BR) g_igX = IG_BR;
+    if (g_igX > w - IG_BR) g_igX = w - IG_BR;
+    if (g_igY < IG_BR) g_igY = IG_BR;
+    if (g_igY > h - IG_BR) g_igY = h - IG_BR;
+}
+static void vc_ig_panel(float* ppx, float* ppy, float* ppw, float* pph) {
+    float pw = 384.0f, ph = 340.0f;
+    float px = (g_igX > (float)g_lastW * 0.5f) ? (g_igX - IG_BR - 14.0f - pw) : (g_igX + IG_BR + 14.0f);
+    float py = g_igY - 140.0f;
+    if (py < 20.0f) py = 20.0f;
+    if (py + ph > (float)g_lastH - 20.0f) py = (float)g_lastH - 20.0f - ph;
+    *ppx = px; *ppy = py; *ppw = pw; *pph = ph;
+}
+// viewport das linhas de mod (entre o header e o botao Expandir)
+static void vc_ig_rows(float py, float ph, float* pRy0, float* pRowBottom) {
+    *pRy0 = py + 72.0f; *pRowBottom = py + ph - 58.0f - 8.0f;
+}
+static void vc_ig_scroll_clamp() {
+    float px, py, pw, ph; vc_ig_panel(&px, &py, &pw, &ph);
+    float ry0, rowBottom; vc_ig_rows(py, ph, &ry0, &rowBottom);
+    float maxS = (float)g_moduleCount * IG_RH - (rowBottom - ry0);
+    if (maxS < 0.0f) maxS = 0.0f;
+    if (g_igScroll < 0.0f) g_igScroll = 0.0f;
+    if (g_igScroll > maxS) g_igScroll = maxS;
+}
 static int vc_ig_hit(float vx, float vy) {
-    float H = (float)g_lastH, bcy = H * 0.42f;
-    if (vx >= IG_BCX - IG_BR && vx <= IG_BCX + IG_BR && vy >= bcy - IG_BR && vy <= bcy + IG_BR) return 0;
+    float dx = vx - g_igX, dy = vy - g_igY;
+    if (dx * dx + dy * dy <= IG_BR * IG_BR) return 0;    /* bolha (circulo) */
     if (g_igMenu == 1) {
-        float px = IG_BCX + IG_BR + 14.0f, pw = 384.0f, py = bcy - 140.0f, ph = 340.0f;
+        float px, py, pw, ph; vc_ig_panel(&px, &py, &pw, &ph);
         if (vx >= px && vx <= px + pw && vy >= py && vy <= py + ph) {
-            int n = g_moduleCount; if (n > 4) n = 4;
-            float ry0 = py + 72.0f, rh = 58.0f;
-            for (int i = 0; i < n; i++) { float ry = ry0 + i * rh; if (vy >= ry && vy <= ry + rh - 8.0f) return 10 + i; }
-            float ey = py + ph - 58.0f; if (vy >= ey && vy <= ey + 46.0f) return 20;
-            return 50;
+            float ey = py + ph - 58.0f; if (vy >= ey && vy <= ey + 46.0f) return 20;   // Expandir
+            float ry0, rowBottom; vc_ig_rows(py, ph, &ry0, &rowBottom);
+            if (vy >= ry0 && vy < rowBottom) {                                          // area de linhas
+                float fy = vy - ry0 + g_igScroll;                                       // posicao no conteudo
+                int i = (int)(fy / IG_RH);
+                if (i >= 0 && i < g_moduleCount && (fy - i * IG_RH) <= IG_RH - 8.0f) return 10 + i;
+            }
+            return 50;   // area do painel (header/gap) -> rolagem
         }
     }
     return -1;
 }
-static void vc_ig_press(float vx, float vy) {
-    int r = vc_ig_hit(vx, vy);
-    if (r == 0) g_igMenu = (g_igMenu == 1) ? 0 : 1;
-    else if (r >= 10 && r < 10 + g_moduleCount) vc_mod_set_enabled(g_modules[r - 10], !g_modules[r - 10]->enabled);
+static void vc_ig_item(int r) {
+    if (r == 20) { g_hudEdit = 1; g_igMenu = 0; return; }   // "Editar HUD" -> modo edicao (fecha o menu)
+    if (r >= 10 && r < 10 + g_moduleCount) vc_mod_set_enabled(g_modules[r - 10], !g_modules[r - 10]->enabled);
+}
+// snap de 1 eixo: tenta grudar a borda esq/centro/dir (ou topo/meio/base) do elemento
+// arrastado nas guias (margem, centro e bordas da tela + bordas/centro dos OUTROS elementos).
+// 'a' = ancora (origem p/ HUD, centro p/ botao). Retorna a ancora ajustada; *outLine = guia ativa (<0 nenhuma).
+static float vc_snap_axis(float a, int center, float size, int horiz, float scrLen, float* outLine) {
+    float off[3];
+    if (center) { off[0] = -size * 0.5f; off[1] = 0.0f; off[2] = size * 0.5f; }
+    else        { off[0] = 0.0f;         off[1] = size * 0.5f; off[2] = size; }
+    float best = SNAP_T, bestA = a, margin = 20.0f; *outLine = -1.0f;
+    float base[3] = { margin, scrLen * 0.5f, scrLen - margin };
+    for (int p = 0; p < 3; p++) {
+        for (int b = 0; b < 3; b++) {                              // guias da tela
+            float d = a + off[p] - base[b]; if (d < 0) d = -d;
+            if (d < best) { best = d; bestA = base[b] - off[p]; *outLine = base[b]; }
+        }
+        for (int i = 0; i < g_etCount; i++) {                      // guias dos OUTROS elementos
+            EditTarget& e = g_et[i]; if (e.fx == g_dragFx) continue;
+            float lo = horiz ? e.rx : e.ry, len = horiz ? e.rw : e.rh;
+            float g3[3] = { lo, lo + len * 0.5f, lo + len };
+            for (int b = 0; b < 3; b++) {
+                float d = a + off[p] - g3[b]; if (d < 0) d = -d;
+                if (d < best) { best = d; bestA = g3[b] - off[p]; *outLine = g3[b]; }
+            }
+        }
+        float hb[2]; int hn = 0;                                   // guias da hotbar
+        if (horiz) { if (g_hbVL >= 0.0f) { hb[hn++] = g_hbVL; hb[hn++] = g_hbVR; } }
+        else       { if (g_hbVT >= 0.0f) { hb[hn++] = g_hbVT; } }
+        for (int b = 0; b < hn; b++) {
+            float d = a + off[p] - hb[b]; if (d < 0) d = -d;
+            if (d < best) { best = d; bestA = hb[b] - off[p]; *outLine = hb[b]; }
+        }
+    }
+    return bestA;
+}
+static void vc_hud_btn(int i, float* px, float* py, float* pw, float* ph) {   // 0=Mover 1=Resize 2=Sair (top-left)
+    *pw = 150.0f; *ph = 62.0f; *py = 22.0f; *px = 22.0f + (float)i * (*pw + 12.0f);
+}
+static void vc_hud_dim() {                                                     // tela escura no fundo (buraco na hotbar)
+    unsigned d = 0xB3000000u;
+    if (g_hbVL >= 0.0f && g_hbVR > g_hbVL && g_hbVB > g_hbVT) {
+        draw_rect(0.0f, 0.0f, (float)g_lastW, g_hbVT, d);
+        draw_rect(0.0f, g_hbVB, (float)g_lastW, (float)g_lastH - g_hbVB, d);
+        draw_rect(0.0f, g_hbVT, g_hbVL, g_hbVB - g_hbVT, d);
+        draw_rect(g_hbVR, g_hbVT, (float)g_lastW - g_hbVR, g_hbVB - g_hbVT, d);
+    } else {
+        draw_rect(0.0f, 0.0f, (float)g_lastW, (float)g_lastH, d);
+    }
+}
+// desenha os botoes da launcher (Z e futuros). Chamado no jogo normal E no modo editar.
+static void vc_draw_ingame_buttons() {
+    if (g_zoomOn) {
+        float bx = vc_zoom_bx(), by = vc_zoom_by();
+        draw_icon(IC_DISC, bx - ZB_R, by - ZB_R, 2.0f * ZB_R, g_zoomHeld ? 0xF07A3CFFu : 0xC01B1B26u);
+        draw_text_c(bx, by + 12.0f, "Z", 40.0f, 0xFFF2F2FFu);
+    }
+    // FUTUROS BOTOES: desenhar aqui + adicionar em vc_build_edit_targets (ja ficam arrastaveis).
+}
+// monta a lista de elementos editaveis: HUD (ancora top-left) + botoes (ancora centro).
+static void vc_build_edit_targets() {
+    g_etCount = 0;
+    for (int i = 0; i < g_moduleCount && g_etCount < 80; i++) {
+        VoidModule* m = g_modules[i];
+        if (!m->enabled || m->category != CAT_HUD || g_hudRW[i] <= 0.0f) continue;
+        EditTarget& e = g_et[g_etCount++];
+        e.rx = g_hudRX[i]; e.ry = g_hudRY[i]; e.rw = g_hudRW[i]; e.rh = g_hudRH[i];
+        e.w = g_hudRW[i]; e.h = g_hudRH[i]; e.fx = &m->x; e.fy = &m->y; e.fsc = &m->scale; e.center = 0; e.name = m->name;
+    }
+    if (g_zoomOn && g_etCount < 80) {
+        EditTarget& e = g_et[g_etCount++];
+        float cx = vc_zoom_bx(), cy = vc_zoom_by();
+        e.rx = cx - ZB_R; e.ry = cy - ZB_R; e.rw = 2.0f * ZB_R; e.rh = 2.0f * ZB_R;
+        e.w = 2.0f * ZB_R; e.h = 2.0f * ZB_R; e.fx = &g_zbx; e.fy = &g_zby; e.fsc = nullptr; e.center = 1; e.name = "Zoom";
+    }
+    // FUTUROS BOTOES: mais um bloco aqui (fx/fy = fracao do CENTRO, center=1).
+}
+static void vc_hud_edit_overlay() {
+    vc_draw_ingame_buttons();                                                // mostra os botoes p/ posicionar
+    vc_build_edit_targets();                                                 // lista (apos HUD medido + botoes)
+    for (int i = 0; i < g_etCount; i++) {                                    // contorno + nome de cada elemento
+        EditTarget& e = g_et[i];
+        float pad = 10.0f, t = 3.0f, rx = e.rx - pad, ry = e.ry - pad, rw = e.rw + 2.0f * pad, rh = e.rh + 2.0f * pad;
+        unsigned col = (g_dragActive && g_dragFx == e.fx) ? 0xFF7A3CFFu : 0x99FFFFFFu;
+        draw_rect(rx, ry, rw, t, col); draw_rect(rx, ry + rh - t, rw, t, col);
+        draw_rect(rx, ry, t, rh, col); draw_rect(rx + rw - t, ry, t, rh, col);
+        draw_text(rx, ry - 8.0f, e.name, 18.0f, 0xFFEAEAF6u);
+    }
+    if (g_dragActive && g_snapLineX >= 0.0f) draw_rect(g_snapLineX - 1.0f, 0.0f, 2.0f, (float)g_lastH, 0xFF4A9EFFu);  // guia azul
+    if (g_dragActive && g_snapLineY >= 0.0f) draw_rect(0.0f, g_snapLineY - 1.0f, (float)g_lastW, 2.0f, 0xFF4A9EFFu);
+    const char* lbl[3] = { "Mover", "Resize", "Sair" };                     // 3 botoes top-left (estilo Flarial)
+    for (int i = 0; i < 3; i++) {
+        float bx, by, bw, bh; vc_hud_btn(i, &bx, &by, &bw, &bh);
+        unsigned bg = (i == 2) ? 0xFF7A2A2Au : ((i == g_hudMode) ? 0xFF7A3CFFu : 0xFF2A1A4Au);
+        draw_rect(bx, by, bw, bh, bg);
+        draw_text_c(bx + bw * 0.5f, by + 40.0f, lbl[i], 26.0f, 0xFFF2F2FFu);
+    }
 }
 static void ui_build_ingame(int W, int H) {
-    float bcy = (float)H * 0.42f;
-    unsigned bcol = (g_igMenu == 1) ? 0xF07A3CFFu : 0xDC1B1B26u;
-    draw_rect(IG_BCX - IG_BR, bcy - IG_BR, 2.0f * IG_BR, 2.0f * IG_BR, bcol);
-    draw_rect(IG_BCX - IG_BR, bcy - IG_BR, 2.0f * IG_BR, 6.0f, 0xFF7A3CFFu);
-    draw_text_c(IG_BCX, bcy + 14.0f, "V", 46.0f, 0xFFF2F2FFu);
+    if (g_hudEdit) { vc_hud_edit_overlay(); return; }   // modo editar: so o overlay de edicao (sem bolha/zoom)
+    vc_ig_initpos();
+    unsigned bcol = (g_igMenu == 1) ? 0xF07A3CFFu : 0xE61B1B26u;
+    draw_icon(IC_DISC, g_igX - IG_BR, g_igY - IG_BR, 2.0f * IG_BR, bcol);
+    draw_text_c(g_igX, g_igY + 14.0f, "V", 46.0f, 0xFFF2F2FFu);
     if (g_igMenu == 1) {
-        float px = IG_BCX + IG_BR + 14.0f, pw = 384.0f, py = bcy - 140.0f, ph = 340.0f;
-        draw_rect(px, py, pw, ph, 0xF00C0A16u);
-        draw_rect(px, py, pw, 6.0f, 0xFF7A3CFFu);
-        draw_text(px + 22.0f, py + 46.0f, "VOID", 30.0f, 0xFFF2F2FFu);
-        int n = g_moduleCount; if (n > 4) n = 4;
-        float ry0 = py + 72.0f, rh = 58.0f;
-        for (int i = 0; i < n; i++) {
+        float px, py, pw, ph; vc_ig_panel(&px, &py, &pw, &ph);
+        draw_round(px, py, pw, ph, 20.0f, 0xF00C0A16u);
+        float ry0, rowBottom; vc_ig_rows(py, ph, &ry0, &rowBottom);
+        vc_ig_scroll_clamp();
+        g_clipTop = ry0; g_clipBot = rowBottom;         // recorta as linhas ao viewport (corte gradual na borda)
+        for (int i = 0; i < g_moduleCount; i++) {
+            float ry = ry0 - g_igScroll + i * IG_RH;
+            if (ry + IG_RH <= ry0 || ry >= rowBottom) continue;   // totalmente fora -> pula (perf); parcial e recortada
             VoidModule* m = g_modules[i];
-            float ry = ry0 + i * rh;
             draw_text(px + 22.0f, ry + 32.0f, m->name, 22.0f, 0xFFEAEAF6u);
             unsigned tc = m->enabled ? 0xFF2E7D32u : 0xFF3A2A3Au;
             draw_rect(px + pw - 100.0f, ry + 6.0f, 80.0f, 36.0f, tc);
             draw_text(px + pw - 100.0f + (m->enabled ? 20.0f : 16.0f), ry + 31.0f, m->enabled ? "ON" : "OFF", 20.0f, 0xFFF0F0FFu);
         }
+        g_clipTop = -1e9f; g_clipBot = 1e9f;                           // fim do recorte
+        draw_rect(px, py, pw, 6.0f, 0xFF7A3CFFu);                       // accent do topo
+        draw_text(px + 22.0f, py + 46.0f, "VOID", 30.0f, 0xFFF2F2FFu);  // titulo
+        // barra de rolagem
+        float viewH = rowBottom - ry0, contentH = (float)g_moduleCount * IG_RH;
+        if (contentH > viewH) {
+            float th = viewH * viewH / contentH; if (th < 24.0f) th = 24.0f;
+            float maxS = contentH - viewH;
+            float ty = ry0 + (maxS > 0.0f ? g_igScroll / maxS : 0.0f) * (viewH - th);
+            draw_rect(px + pw - 10.0f, ry0, 4.0f, viewH, 0x30FFFFFFu);
+            draw_rect(px + pw - 10.0f, ty, 4.0f, th, 0xFF7A3CFFu);
+        }
         float ey = py + ph - 58.0f;
         draw_rect(px + 20.0f, ey, pw - 40.0f, 46.0f, 0xFF2A1A4Au);
-        draw_text_c(px + pw * 0.5f, ey + 31.0f, vc_tr("Expandir"), 24.0f, 0xFFEAEAF6u);
+        draw_text_c(px + pw * 0.5f, ey + 31.0f, "Editar HUD", 24.0f, 0xFFEAEAF6u);
     }
+    vc_draw_ingame_buttons();                       // botoes da launcher (Z etc.)
 }
 static void my_feed(char down, char edge, short x, short y, int pid) {
     if (pid < 0 || pid > 11 || !g_mc || g_pixelH <= 0 || !onHud(g_mc)) { if (orig_feed) orig_feed(down, edge, x, y, pid); return; }
     float k = (1080.0f / (float)g_pixelH) / g_optMult;
     float vx = (float)x * k, vy = (float)y * k;
     unsigned bit = 1u << pid;
-    if (down && edge) {                        /* PRESS */
-        int r = vc_ig_hit(vx, vy);
-        if (r != -1) { g_ourPtrs |= bit; vc_ig_press(vx, vy); return; }
-    } else if (g_ourPtrs & bit) {              /* MOVE/RELEASE do nosso dedo */
-        if (down && !edge) g_ourPtrs &= ~bit;  /* RELEASE limpa o bit */
+    if (g_hudEdit) {                               /* modo editar: arrasta QUALQUER elemento (HUD + botoes); consome tudo */
+        if (down && edge) {                        /* PRESS */
+            for (int i = 0; i < 3; i++) {          /* 3 botoes top-left: Mover / Resize / Sair */
+                float bx, by, bw, bh; vc_hud_btn(i, &bx, &by, &bw, &bh);
+                if (vx >= bx && vx <= bx + bw && vy >= by && vy <= by + bh) {
+                    if (i == 2) { g_hudEdit = 0; vc_modules_save(); } else g_hudMode = i;
+                    return;
+                }
+            }
+            for (int i = 0; i < g_etCount; i++) {
+                EditTarget& e = g_et[i]; float pad = 14.0f;
+                if (vx < e.rx - pad || vx > e.rx + e.rw + pad || vy < e.ry - pad || vy > e.ry + e.rh + pad) continue;
+                float ax = e.center ? (*e.fx >= 0.0f ? *e.fx * (float)g_lastW : e.rx + e.rw * 0.5f) : (*e.fx * (float)g_lastW);
+                float ay = e.center ? (*e.fy >= 0.0f ? *e.fy * (float)g_lastH : e.ry + e.rh * 0.5f) : (*e.fy * (float)g_lastH);
+                g_dragActive = 1; g_hudDragPid = pid; g_dragFx = e.fx; g_dragFy = e.fy;
+                g_dragCenter = e.center; g_dragW = e.w; g_dragH = e.h;
+                g_dragFs = e.fsc; g_dragStartScale = (e.fsc ? *e.fsc : 1.0f); g_dragStartFy = vy;
+                g_etOX = vx - ax; g_etOY = vy - ay;
+                break;
+            }
+            return;
+        } else if (pid == g_hudDragPid) {          /* MOVE/RELEASE */
+            if (down && !edge) { g_dragActive = 0; g_hudDragPid = -1; g_snapLineX = -1.0f; g_snapLineY = -1.0f; vc_modules_save(); return; }
+            if (g_dragActive && g_dragFx && g_dragFy) {
+                if (g_hudMode == 1 && g_dragFs) {  /* RESIZE: arraste vertical = escala (cima=maior) */
+                    float s = g_dragStartScale + (g_dragStartFy - vy) / 320.0f;
+                    if (s < 0.5f) s = 0.5f; if (s > 3.0f) s = 3.0f;
+                    *g_dragFs = s;
+                } else {                           /* MOVER: posicao + snap magnetico */
+                    float ax = vx - g_etOX, ay = vy - g_etOY;
+                    ax = vc_snap_axis(ax, g_dragCenter, g_dragW, 1, (float)g_lastW, &g_snapLineX);
+                    ay = vc_snap_axis(ay, g_dragCenter, g_dragH, 0, (float)g_lastH, &g_snapLineY);
+                    float minAX = g_dragCenter ? g_dragW * 0.5f : 0.0f;
+                    float maxAX = (float)g_lastW - (g_dragCenter ? g_dragW * 0.5f : g_dragW);
+                    float minAY = g_dragCenter ? g_dragH * 0.5f : 0.0f;
+                    float maxAY = (float)g_lastH - (g_dragCenter ? g_dragH * 0.5f : g_dragH);
+                    if (ax < minAX) ax = minAX; if (ax > maxAX) ax = maxAX;
+                    if (ay < minAY) ay = minAY; if (ay > maxAY) ay = maxAY;
+                    *g_dragFx = ax / (float)g_lastW; *g_dragFy = ay / (float)g_lastH;
+                }
+            }
+            return;
+        }
         return;
     }
-    if (orig_feed) orig_feed(down, edge, x, y, pid);
+    vc_ig_initpos();
+    if (down && edge) {                            /* PRESS */
+        int r = vc_ig_hit(vx, vy);
+        if (r == 0) {                              /* bolha: adia decisao (tap vs arraste) */
+            g_ourPtrs |= bit; g_dragPid = pid; g_dragSX = vx; g_dragSY = vy;
+            g_dragOX = vx - g_igX; g_dragOY = vy - g_igY; g_dragMoved = 0;
+            return;
+        }
+        if (r != -1) {                              /* painel: gesto tap(aciona) vs arraste(rola) */
+            g_ourPtrs |= bit; g_scrollPid = pid; g_scrollStartY = vy;
+            g_scrollStartScroll = g_igScroll; g_scrollMoved = 0; g_scrollHitR = r;
+            return;
+        }
+        if (vc_zoom_hit(vx, vy)) {                  /* botao de zoom */
+            g_ourPtrs |= bit; g_zoomPid = pid;
+            if (g_zoomToggle) g_zoomHeld = !g_zoomHeld;  /* Alternar: liga/desliga no toque (dedos livres) */
+            else g_zoomHeld = 1;                         /* Segurar */
+            return;
+        }
+    } else if (g_ourPtrs & bit) {                  /* MOVE/RELEASE do nosso dedo */
+        if (pid == g_scrollPid) {                  /* dedo no painel: rola ou aciona item */
+            if (down && !edge) {                   /* RELEASE */
+                if (!g_scrollMoved) vc_ig_item(g_scrollHitR);  /* TAP -> aciona */
+                g_scrollPid = -1; g_ourPtrs &= ~bit;
+                return;
+            }
+            float sdy = vy - g_scrollStartY;        /* MOVE */
+            if (!g_scrollMoved && sdy * sdy > 100.0f) g_scrollMoved = 1;
+            if (g_scrollMoved) { g_igScroll = g_scrollStartScroll - sdy; vc_ig_scroll_clamp(); }
+            return;
+        }
+        if (pid == g_zoomPid) {                    /* dedo do botao de zoom */
+            if (down && !edge) {                   /* RELEASE */
+                if (!g_zoomToggle) g_zoomHeld = 0;  /* Segurar: solta para; Alternar: mantem ligado */
+                g_zoomPid = -1; g_ourPtrs &= ~bit;
+            }
+            return;                                /* MOVE mantem */
+        }
+        if (pid == g_dragPid) {                    /* dedo da bolha */
+            if (down && !edge) {                   /* RELEASE */
+                if (!g_dragMoved) { g_igMenu = (g_igMenu == 1) ? 0 : 1; if (g_igMenu) g_igScroll = 0.0f; }  /* TAP -> abre/fecha menu (abre no topo) */
+                g_dragPid = -1; g_ourPtrs &= ~bit;
+                return;
+            }
+            float ddx = vx - g_dragSX, ddy = vy - g_dragSY;          /* MOVE */
+            if (!g_dragMoved && (ddx * ddx + ddy * ddy) > IG_DRAG2) g_dragMoved = 1;
+            if (g_dragMoved) { g_igX = vx - g_dragOX; g_igY = vy - g_dragOY; vc_ig_clamp(); }
+            return;
+        }
+        if (down && !edge) g_ourPtrs &= ~bit;      /* item do menu: solta */
+        return;
+    }
+    g_ptrX[pid] = vx; g_ptrY[pid] = vy;   /* guarda a posicao deste dedo; a bola segue so o de interacao */
+    if (orig_feed) orig_feed(down, edge, x, y, pid);   /* CPS agora e contado no my_turntick (area do jogo) */
 }
 
+// hook do HotBarRenderer::render: pega o rect REAL da hotbar (5o arg = RectangleArea& na pilha).
+static void my_hotbar(void* self, void* mc, void* ctrl, int a, void* rect) {
+    void* uc = ctrl ? *(void**)ctrl : nullptr;     // shared_ptr<UIControl>& -> UIControl*
+    if (uc) {
+        float aabb[4] = { 0, 0, 0, 0 };
+        ((void(*)(void*, void*))VC_CALL(0x725bc8u))(aabb, uc);   // getAABB (GUI units) {x0,x1,y0,y1}
+        if (aabb[0] < g_hbAccL) g_hbAccL = aabb[0];              // acumula os slots -> hotbar inteira
+        if (aabb[1] > g_hbAccR) g_hbAccR = aabb[1];
+        if (aabb[2] < g_hbAccT) g_hbAccT = aabb[2];
+        if (aabb[3] > g_hbAccB) g_hbAccB = aabb[3];
+    }
+    if (orig_hotbar) orig_hotbar(self, mc, ctrl, a, rect);
+}
+// TouchTurnInteractControl::tick: o ponteiro ativo (this+0x34) vai de -1 -> id quando um toque
+// NOVO entra na area de camera/ataque (NAO em botao/joystick/hotbar). Isso = 1 clique de CPS.
+static void my_turntick(void* self, void* q, void* tpr, int a) {
+    int before = self ? *(int*)((char*)self + 0x34) : -1;
+    if (orig_turntick) orig_turntick(self, q, tpr, a);
+    int after = self ? *(int*)((char*)self + 0x34) : -1;
+    if (before == -1 && after != -1) vc_modules_click(0);
+    g_interactPid = after;   // dedo de interacao (camera/ataque) p/ a bola; -1 = nenhum (joystick nao conta)
+}
+extern "C" void vc_ball_config(int on, float size, unsigned color) {
+    g_ballOn = on; g_ballSize = size; if (color) g_ballColor = color;
+}
+// suprime o anel de toque nativo quando o modulo esta ligado (desenhamos o nosso no overlay).
+// return 0 -> o pai (HudProgressRenderer::render) ve r0 != 1 e nao escreve o out-rect = zero desenho.
+static int my_rpi(void* self, void* client, int a, int b, float f) {
+    if (!g_ballOn) return orig_rpi ? orig_rpi(self, client, a, b, f) : 0;
+    return 0;
+}
 static void install_swap_hook() {
     void* p = dlsym(g_mcpe, "_ZN19AppPlatform_android11swapBuffersEv");
     if (!p) { LOG("AppPlatform::swapBuffers nao resolvido"); return; }
     MSHookFunction(p, (void*)my_apSwap, (void**)&orig_apSwap);
     LOG("hook AppPlatform::swapBuffers @%p orig=%p", p, (void*)orig_apSwap);
+
+    void* hbr = dlsym(g_mcpe, "_ZN14HotBarRenderer6renderER15MinecraftClientRSt10shared_ptrI9UIControlEiR13RectangleArea");
+    if (hbr) { MSHookFunction(hbr, (void*)my_hotbar, (void**)&orig_hotbar); LOG("hook HotBarRenderer::render @%p", hbr); }
+
+    void* tt = dlsym(g_mcpe, "_ZN24TouchTurnInteractControl4tickER15InputEventQueueR17TouchPointResultsi");
+    if (tt) { MSHookFunction(tt, (void*)my_turntick, (void**)&orig_turntick); LOG("hook TouchTurnInteractControl::tick @%p", tt); }
+
+    void* rpi = dlsym(g_mcpe, "_ZN19HudProgressRenderer24_renderProgressIndicatorER15MinecraftClientiif");
+    if (rpi) { MSHookFunction(rpi, (void*)my_rpi, (void**)&orig_rpi); LOG("hook _renderProgressIndicator (a bola) @%p", rpi); }
+    else LOG("_renderProgressIndicator (a bola) nao resolvido");
 
     void* up = dlsym(g_mcpe, "_ZN15MinecraftClient6updateEv");
     if (up) {

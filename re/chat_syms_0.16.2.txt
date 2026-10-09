@@ -1,0 +1,89 @@
+01cb7d82 B MCRESULT_NoChatPermissions
+009d33e4 W std::shared_ptr<BaseScreen> createScreen<MinecraftScreenModel, ChatScreenController, bool>(ScreenChooser const&, MinecraftClient&, std::string const&, bool&&)
+00852a56 T GuiMessage::hasOldFlag(OldMessageFlag)
+00852a66 T GuiMessage::setOldFlag(OldMessageFlag)
+00852a6e T GuiMessage::incrementTick()
+008525b4 T GuiMessage::GuiMessage(std::string const&, std::string const&, int, bool)
+008529e0 T GuiMessage::GuiMessage()
+008521b4 W GuiMessage::GuiMessage(GuiMessage const&)
+008525b4 T GuiMessage::GuiMessage(std::string const&, std::string const&, int, bool)
+008529e0 T GuiMessage::GuiMessage()
+00afed90 T LocalPlayer::chat(std::string const&)
+009d30c0 T ScreenChooser::pushChatScreen()
+007a5f6e T MinecraftClient::handleChatButtonRelease()
+01a94d1c R SharedConstants::MaxChatLength
+00dbd5c0 T MinecraftCommands::registerChatPermissionsCallback(std::function<bool ()>)
+00cd57e4 T MinecraftEventing::fireEventPlayerMessageChat(std::string const&, std::string const&)
+008b35c8 T HudScreenController::isChatInLowerPosition()
+008b5c9c T HudScreenController::_handleNewGuiChatMessages()
+0087c0da T ChatScreenController::_hideKeyboard()
+0087c0b0 T ChatScreenController::_showKeyboard()
+01c108c0 B ChatScreenController::mSentMessages
+0087bdd8 T ChatScreenController::setViewCommand(ScreenViewCommand&)
+0087bebc T ChatScreenController::_sendChatMessage()
+0087b0a8 T ChatScreenController::_registerBindings()
+0087b9c4 T ChatScreenController::_handleChatMessage(GuiMessage const&)
+0087c11c T ChatScreenController::_handleTabComplete(int)
+00878e44 T ChatScreenController::_updateIntellisense()
+0087c944 T ChatScreenController::_getAutoCompleteText(int)
+0087c828 T ChatScreenController::_getAutoCompleteItemId(int)
+0087a4e4 T ChatScreenController::_registerEventHandlers()
+0087c8c2 T ChatScreenController::_adjustAutoCompleteIndex(int)
+0087c75c T ChatScreenController::_handleSelectSentMessage(int)
+0087c73c T ChatScreenController::_resetTabCompleteProgress()
+0087bd5c T ChatScreenController::handleGameEventNotification(ui::GameEventNotification)
+0087c8f8 T ChatScreenController::_calculateSpaceForAutoComplete()
+0087bda0 T ChatScreenController::tick()
+0087b830 T ChatScreenController::onOpen()
+00878ab4 T ChatScreenController::ChatScreenController(std::shared_ptr<MinecraftScreenModel>, bool)
+00878ab4 T ChatScreenController::ChatScreenController(std::shared_ptr<MinecraftScreenModel>, bool)
+0087cc24 W ChatScreenController::~ChatScreenController()
+0087ca34 W ChatScreenController::~ChatScreenController()
+009b7aa0 T MinecraftScreenModel::toggleChatMute()
+009b767c T MinecraftScreenModel::sendChatMessage(std::string const&)
+009b7654 T MinecraftScreenModel::displayChatMessage(std::string const&, std::string const&)
+009b1700 T MinecraftScreenModel::getNewGuiChatMessages()
+009b1714 T MinecraftScreenModel::getNewGuiChatScreenMessages()
+00b0171e W Player::displayChatMessage(std::string const&, std::string const&)
+00b01720 W Player::displayClientMessage(std::string const&)
+00851962 T GuiData::forceMuteChat()
+00851438 T GuiData::setIsChatting(bool)
+0085194c T GuiData::toggleMuteChat()
+0084f98c T GuiData::_insertGuiMessage(GuiMessage&)
+0084fe1c T GuiData::displayChatMessage(std::string const&, std::string const&)
+00851350 T GuiData::getNewChatMessages()
+0084fd20 T GuiData::displayClientMessage(std::string const&)
+008513c8 T GuiData::getNewChatScreenMessages()
+00851ea8 W void __gnu_cxx::new_allocator<GuiMessage>::destroy<GuiMessage>(GuiMessage*)
+00a01cd8 W void __gnu_cxx::new_allocator<ScreenView>::construct<ScreenView, NameRegistry&, MinecraftClient&, std::shared_ptr<ChatScreenController>&, std::unique_ptr<VisualTree, std::default_delete<VisualTree>>, std::shared_ptr<UIControlFactory>>(ScreenView*, NameRegistry&, MinecraftClient&, std::shared_ptr<ChatScreenController>&, std::unique_ptr<VisualTree, std::default_delete<VisualTree>>&&, std::shared_ptr<UIControlFactory>&&)
+00a019d4 W void __gnu_cxx::new_allocator<ChatScreenController>::construct<ChatScreenController, std::shared_ptr<MinecraftScreenModel>&, bool>(ChatScreenController*, std::shared_ptr<MinecraftScreenModel>&, bool&&)
+00852a1e T GuiMessage::getMessage() const
+00852a2a T GuiMessage::getMaxTicks() const
+00852a22 T GuiMessage::isForceVisible() const
+00852a2e T GuiMessage::getPercentComplete() const
+00852a48 T GuiMessage::isDead() const
+00852a1a T GuiMessage::getUser() const
+00852a26 T GuiMessage::getTicks() const
+00852a16 T GuiMessage::getString() const
+00852a08 T GuiMessage::isCommand() const
+0087bdd0 T ChatScreenController::_isKeyboardActive() const
+0087c100 T ChatScreenController::_isSendButtonVisible() const
+009b16f0 T MinecraftScreenModel::getGuiMessageList() const
+00850b78 T GuiData::isMuteChat() const
+007bb4f0 W minecraft::api::NetworkInterface::handleChatEvent(Player*, TextPacketType, std::string) const
+00a01b40 W std::__shared_ptr<ScreenView, (__gnu_cxx::_Lock_policy)2>::__shared_ptr<std::allocator<ScreenView>, NameRegistry&, MinecraftClient&, std::shared_ptr<ChatScreenController>&, std::unique_ptr<VisualTree, std::default_delete<VisualTree>>, std::shared_ptr<UIControlFactory>>(std::_Sp_make_shared_tag, std::allocator<ScreenView> const&, NameRegistry&, MinecraftClient&, std::shared_ptr<ChatScreenController>&, std::unique_ptr<VisualTree, std::default_delete<VisualTree>>&&, std::shared_ptr<UIControlFactory>&&)
+00a017b8 W std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::__shared_ptr<std::allocator<ChatScreenController>, std::shared_ptr<MinecraftScreenModel>&, bool>(std::_Sp_make_shared_tag, std::allocator<ChatScreenController> const&, std::shared_ptr<MinecraftScreenModel>&, bool&&)
+00a01b38 W std::_Sp_counted_deleter<ChatScreenController*, std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreenController>>, std::allocator<ChatScreenController>, (__gnu_cxx::_Lock_policy)2>::_M_destroy()
+00a01b22 W std::_Sp_counted_deleter<ChatScreenController*, std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreenController>>, std::allocator<ChatScreenController>, (__gnu_cxx::_Lock_policy)2>::_M_dispose()
+00a01b3c W std::_Sp_counted_deleter<ChatScreenController*, std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreenController>>, std::allocator<ChatScreenController>, (__gnu_cxx::_Lock_policy)2>::_M_get_deleter(std::type_info const&)
+00a01b1e W std::_Sp_counted_deleter<ChatScreenController*, std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreenController>>, std::allocator<ChatScreenController>, (__gnu_cxx::_Lock_policy)2>::~_Sp_counted_deleter()
+00a01b1c W std::_Sp_counted_deleter<ChatScreenController*, std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreenController>>, std::allocator<ChatScreenController>, (__gnu_cxx::_Lock_policy)2>::~_Sp_counted_deleter()
+0087cebc W GuiMessage* std::__uninitialized_copy<false>::__uninit_copy<__gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage*>(__gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, __gnu_cxx::__normal_iterator<GuiMessage const*, std::vector<GuiMessage, std::allocator<GuiMessage>>>, GuiMessage*)
+0087e470 W ChatScreenController::AutoCompleteMessage* std::__uninitialized_copy<false>::__uninit_copy<ChatScreenController::AutoCompleteMessage*, ChatScreenController::AutoCompleteMessage*>(ChatScreenController::AutoCompleteMessage*, ChatScreenController::AutoCompleteMessage*, ChatScreenController::AutoCompleteMessage*)
+008522b0 W std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_erase_at_end(GuiMessage*)
+008523a8 W void std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_emplace_back_aux<GuiMessage const&>(GuiMessage const&)
+00851fa8 W void std::vector<GuiMessage, std::allocator<GuiMessage>>::_M_emplace_back_aux<GuiMessage&>(GuiMessage&)
+0084eea0 W std::vector<GuiMessage, std::allocator<GuiMessage>>::~vector()
+0087e1b8 W void std::vector<ChatScreenController::AutoCompleteMessage, std::allocator<ChatScreenController::AutoCompleteMessage>>::_M_emplace_back_aux<ChatScreenController::AutoCompleteMessage&>(ChatScreenController::AutoCompleteMessage&)
+01b54b70 D vtable for ChatScreenController
+01b58570 V vtable for std::_Sp_counted_deleter<ChatScreenController*, std::__shared_ptr<ChatScreenController, (__gnu_cxx::_Lock_policy)2>::_Deleter<std::allocator<ChatScreenController>>, std::allocator<ChatScreenController>, (__gnu_cxx::_Lock_policy)2>

@@ -1,0 +1,16 @@
+
+C:\modulo\minecraft\_emu32\mcpe-vanilla\lib\armeabi-v7a\libminecraftpe.so:	file format elf32-littlearm
+
+Disassembly of section .text:
+
+00762a9c <_ZN10ChatScreen18_updateGuiMessagesEv>:
+  762a9c: b510         	push	{r4, lr}
+  762a9e: 4604         	mov	r4, r0
+  762aa0: 6960         	ldr	r0, [r4, #0x14]
+  762aa2: f638 e810    	blx	0x59aac4 <.plt+0x3b60>  @ imm = #-0x1c7fe0
+  762aa6: 34bc         	adds	r4, #0xbc
+  762aa8: f63d ef2e    	blx	0x5a0908 <.plt+0x99a4>  @ imm = #-0x1c21a4
+  762aac: 4601         	mov	r1, r0
+  762aae: 4620         	mov	r0, r4
+  762ab0: e8bd 4010    	pop.w	{r4, lr}
+  762ab4: f28b b91a    	b.w	0x9edcec <_ZN20HoloHudDriftDynamics22_adjustGazeToPoseDeltaERK4Vec3+0xd6c> @ imm = #0x28b234

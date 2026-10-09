@@ -1,0 +1,201 @@
+
+C:\modulo\minecraft\_emu32\mcpe-vanilla\lib\armeabi-v7a\libminecraftpe.so:	file format elf32-littlearm
+
+Disassembly of section .text:
+
+0074834c <_ZN7GuiData17_insertGuiMessageER10GuiMessage>:
+  74834c: e92d 4830    	push.w	{r4, r5, r11, lr}
+  748350: 4605         	mov	r5, r0
+  748352: 460c         	mov	r4, r1
+  748354: 4622         	mov	r2, r4
+  748356: f850 1f84    	ldr	r1, [r0, #132]!
+  74835a: f657 e874    	blx	0x59f444 <.plt+0x84e0>  @ imm = #-0x1a8f18
+  74835e: f105 0190    	add.w	r1, r5, #0x90
+  748362: 4628         	mov	r0, r5
+  748364: 4622         	mov	r2, r4
+  748366: e8bd 4830    	pop.w	{r4, r5, r11, lr}
+  74836a: f2a5 bb8f    	b.w	0x9eda8c <_ZN20HoloHudDriftDynamics22_adjustGazeToPoseDeltaERK4Vec3+0xb0c> @ imm = #0x2a571e
+  74836e: 0000         	movs	r0, r0
+
+00748370 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_>:
+  748370: e92d 41f0    	push.w	{r4, r5, r6, r7, r8, lr}
+  748374: b088         	sub	sp, #0x20
+  748376: 4604         	mov	r4, r0
+  748378: 460d         	mov	r5, r1
+  74837a: 6860         	ldr	r0, [r4, #0x4]
+  74837c: 6827         	ldr	r7, [r4]
+  74837e: 68a1         	ldr	r1, [r4, #0x8]
+  748380: 4285         	cmp	r5, r0
+  748382: d108         	bne	0x748396 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x26> @ imm = #0x10
+  748384: 4288         	cmp	r0, r1
+  748386: d006         	beq	0x748396 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x26> @ imm = #0xc
+  748388: 2800         	cmp	r0, #0x0
+  74838a: d03f         	beq	0x74840c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x9c> @ imm = #0x7e
+  74838c: 4611         	mov	r1, r2
+  74838e: f657 e872    	blx	0x59f474 <.plt+0x8510>  @ imm = #-0x1a8f1c
+  748392: 6860         	ldr	r0, [r4, #0x4]
+  748394: e03b         	b	0x74840e <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x9e> @ imm = #0x76
+  748396: 4288         	cmp	r0, r1
+  748398: d03c         	beq	0x748414 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xa4> @ imm = #0x78
+  74839a: ae01         	add	r6, sp, #0x4
+  74839c: 4611         	mov	r1, r2
+  74839e: 4630         	mov	r0, r6
+  7483a0: f657 e868    	blx	0x59f474 <.plt+0x8510>  @ imm = #-0x1a8f30
+  7483a4: 4620         	mov	r0, r4
+  7483a6: 4629         	mov	r1, r5
+  7483a8: 4632         	mov	r2, r6
+  7483aa: f657 e86a    	blx	0x59f480 <.plt+0x851c>  @ imm = #-0x1a8f2c
+  7483ae: 4862         	ldr	r0, [pc, #0x188]        @ 0x748538 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1c8>
+  7483b0: f8df 8178    	ldr.w	r8, [pc, #0x178]        @ 0x74852c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1bc>
+  7483b4: 4478         	add	r0, pc
+  7483b6: 9905         	ldr	r1, [sp, #0x14]
+  7483b8: f858 2000    	ldr.w	r2, [r8, r0]
+  7483bc: f1a1 000c    	sub.w	r0, r1, #0xc
+  7483c0: 4290         	cmp	r0, r2
+  7483c2: d13a         	bne	0x74843a <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xca> @ imm = #0x74
+  7483c4: 485d         	ldr	r0, [pc, #0x174]        @ 0x74853c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1cc>
+  7483c6: 9904         	ldr	r1, [sp, #0x10]
+  7483c8: 4478         	add	r0, pc
+  7483ca: f858 2000    	ldr.w	r2, [r8, r0]
+  7483ce: f1a1 000c    	sub.w	r0, r1, #0xc
+  7483d2: 4290         	cmp	r0, r2
+  7483d4: d143         	bne	0x74845e <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xee> @ imm = #0x86
+  7483d6: 485a         	ldr	r0, [pc, #0x168]        @ 0x748540 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1d0>
+  7483d8: 9903         	ldr	r1, [sp, #0xc]
+  7483da: 4478         	add	r0, pc
+  7483dc: f858 2000    	ldr.w	r2, [r8, r0]
+  7483e0: f1a1 000c    	sub.w	r0, r1, #0xc
+  7483e4: 4290         	cmp	r0, r2
+  7483e6: d019         	beq	0x74841c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xac> @ imm = #0x32
+  7483e8: 3904         	subs	r1, #0x4
+  7483ea: f3bf 8f5b    	dmb	ish
+  7483ee: e851 2f00    	ldrex	r2, [r1]
+  7483f2: 1e53         	subs	r3, r2, #0x1
+  7483f4: e841 3600    	strex	r6, r3, [r1]
+  7483f8: 2e00         	cmp	r6, #0x0
+  7483fa: d1f8         	bne	0x7483ee <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x7e> @ imm = #-0x10
+  7483fc: f3bf 8f5b    	dmb	ish
+  748400: 2a00         	cmp	r2, #0x0
+  748402: dc0b         	bgt	0x74841c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xac> @ imm = #0x16
+  748404: a907         	add	r1, sp, #0x1c
+  748406: f64e eeb4    	blx	0x597170 <.plt+0x20c>   @ imm = #-0x1b1298
+  74840a: e007         	b	0x74841c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xac> @ imm = #0xe
+  74840c: 2000         	movs	r0, #0x0
+  74840e: 3018         	adds	r0, #0x18
+  748410: 6060         	str	r0, [r4, #0x4]
+  748412: e003         	b	0x74841c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xac> @ imm = #0x6
+  748414: 4620         	mov	r0, r4
+  748416: 4629         	mov	r1, r5
+  748418: f657 e838    	blx	0x59f48c <.plt+0x8528>  @ imm = #-0x1a8f90
+  74841c: 1be8         	subs	r0, r5, r7
+  74841e: f64a 21ab    	movw	r1, #0xaaab
+  748422: f6ca 21aa    	movt	r1, #0xaaaa
+  748426: 10c0         	asrs	r0, r0, #0x3
+  748428: 4348         	muls	r0, r1, r0
+  74842a: 6821         	ldr	r1, [r4]
+  74842c: eb00 0040    	add.w	r0, r0, r0, lsl #1
+  748430: eb01 00c0    	add.w	r0, r1, r0, lsl #3
+  748434: b008         	add	sp, #0x20
+  748436: e8bd 81f0    	pop.w	{r4, r5, r6, r7, r8, pc}
+  74843a: 3904         	subs	r1, #0x4
+  74843c: f3bf 8f5b    	dmb	ish
+  748440: e851 2f00    	ldrex	r2, [r1]
+  748444: 1e53         	subs	r3, r2, #0x1
+  748446: e841 3600    	strex	r6, r3, [r1]
+  74844a: 2e00         	cmp	r6, #0x0
+  74844c: d1f8         	bne	0x748440 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xd0> @ imm = #-0x10
+  74844e: f3bf 8f5b    	dmb	ish
+  748452: 2a00         	cmp	r2, #0x0
+  748454: dcb6         	bgt	0x7483c4 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x54> @ imm = #-0x94
+  748456: a907         	add	r1, sp, #0x1c
+  748458: f64e ee8a    	blx	0x597170 <.plt+0x20c>   @ imm = #-0x1b12ec
+  74845c: e7b2         	b	0x7483c4 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x54> @ imm = #-0x9c
+  74845e: 3904         	subs	r1, #0x4
+  748460: f3bf 8f5b    	dmb	ish
+  748464: e851 2f00    	ldrex	r2, [r1]
+  748468: 1e53         	subs	r3, r2, #0x1
+  74846a: e841 3600    	strex	r6, r3, [r1]
+  74846e: 2e00         	cmp	r6, #0x0
+  748470: d1f8         	bne	0x748464 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0xf4> @ imm = #-0x10
+  748472: f3bf 8f5b    	dmb	ish
+  748476: 2a00         	cmp	r2, #0x0
+  748478: dcad         	bgt	0x7483d6 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x66> @ imm = #-0xa6
+  74847a: a907         	add	r1, sp, #0x1c
+  74847c: f64e ee78    	blx	0x597170 <.plt+0x20c>   @ imm = #-0x1b1310
+  748480: e7a9         	b	0x7483d6 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x66> @ imm = #-0xae
+  748482: 4a29         	ldr	r2, [pc, #0xa4]         @ 0x748528 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1b8>
+  748484: 4604         	mov	r4, r0
+  748486: 4d29         	ldr	r5, [pc, #0xa4]         @ 0x74852c <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1bc>
+  748488: 447a         	add	r2, pc
+  74848a: 9905         	ldr	r1, [sp, #0x14]
+  74848c: f1a1 000c    	sub.w	r0, r1, #0xc
+  748490: 58aa         	ldr	r2, [r5, r2]
+  748492: 4290         	cmp	r0, r2
+  748494: d124         	bne	0x7484e0 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x170> @ imm = #0x48
+  748496: 4826         	ldr	r0, [pc, #0x98]         @ 0x748530 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1c0>
+  748498: 9904         	ldr	r1, [sp, #0x10]
+  74849a: 4478         	add	r0, pc
+  74849c: 582a         	ldr	r2, [r5, r0]
+  74849e: f1a1 000c    	sub.w	r0, r1, #0xc
+  7484a2: 4290         	cmp	r0, r2
+  7484a4: d12e         	bne	0x748504 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x194> @ imm = #0x5c
+  7484a6: 4823         	ldr	r0, [pc, #0x8c]         @ 0x748534 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x1c4>
+  7484a8: 9903         	ldr	r1, [sp, #0xc]
+  7484aa: 4478         	add	r0, pc
+  7484ac: 582a         	ldr	r2, [r5, r0]
+  7484ae: f1a1 000c    	sub.w	r0, r1, #0xc
+  7484b2: 4290         	cmp	r0, r2
+  7484b4: d011         	beq	0x7484da <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x16a> @ imm = #0x22
+  7484b6: 3904         	subs	r1, #0x4
+  7484b8: f3bf 8f5b    	dmb	ish
+  7484bc: e851 2f00    	ldrex	r2, [r1]
+  7484c0: 1e53         	subs	r3, r2, #0x1
+  7484c2: e841 3700    	strex	r7, r3, [r1]
+  7484c6: 2f00         	cmp	r7, #0x0
+  7484c8: d1f8         	bne	0x7484bc <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x14c> @ imm = #-0x10
+  7484ca: 2a00         	cmp	r2, #0x0
+  7484cc: f3bf 8f5b    	dmb	ish
+  7484d0: bfdc         	itt	le
+  7484d2: f10d 011c    	addle.w	r1, sp, #0x1c
+  7484d6: f64e ee4c    	blxle	0x597170 <.plt+0x20c>   @ imm = #-0x1b1368
+  7484da: 4620         	mov	r0, r4
+  7484dc: f64e ee4e    	blx	0x59717c <.plt+0x218>   @ imm = #-0x1b1364
+  7484e0: 3904         	subs	r1, #0x4
+  7484e2: f3bf 8f5b    	dmb	ish
+  7484e6: e851 2f00    	ldrex	r2, [r1]
+  7484ea: 1e53         	subs	r3, r2, #0x1
+  7484ec: e841 3700    	strex	r7, r3, [r1]
+  7484f0: 2f00         	cmp	r7, #0x0
+  7484f2: d1f8         	bne	0x7484e6 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x176> @ imm = #-0x10
+  7484f4: f3bf 8f5b    	dmb	ish
+  7484f8: 2a00         	cmp	r2, #0x0
+  7484fa: dccc         	bgt	0x748496 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x126> @ imm = #-0x68
+  7484fc: a907         	add	r1, sp, #0x1c
+  7484fe: f64e ee38    	blx	0x597170 <.plt+0x20c>   @ imm = #-0x1b1390
+  748502: e7c8         	b	0x748496 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x126> @ imm = #-0x70
+  748504: 3904         	subs	r1, #0x4
+  748506: f3bf 8f5b    	dmb	ish
+  74850a: e851 2f00    	ldrex	r2, [r1]
+  74850e: 1e53         	subs	r3, r2, #0x1
+  748510: e841 3700    	strex	r7, r3, [r1]
+  748514: 2f00         	cmp	r7, #0x0
+  748516: d1f8         	bne	0x74850a <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x19a> @ imm = #-0x10
+  748518: f3bf 8f5b    	dmb	ish
+  74851c: 2a00         	cmp	r2, #0x0
+  74851e: dcc2         	bgt	0x7484a6 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x136> @ imm = #-0x7c
+  748520: a907         	add	r1, sp, #0x1c
+  748522: f64e ee26    	blx	0x597170 <.plt+0x20c>   @ imm = #-0x1b13b4
+  748526: e7be         	b	0x7484a6 <_ZNSt6vectorI10GuiMessageSaIS0_EE6insertEN9__gnu_cxx17__normal_iteratorIPKS0_S2_EERS5_+0x136> @ imm = #-0x84
+  748528: 9ff0         	ldr	r7, [sp, #0x3c0]
+  74852a: 00f3         	lsls	r3, r6, #0x3
+  74852c: a834         	add	r0, sp, #0xd0
+  74852e: ffff 9fde    	<unknown>
+  748532: 00f3         	lsls	r3, r6, #0x3
+  748534: 9fce         	ldr	r7, [sp, #0x338]
+  748536: 00f3         	lsls	r3, r6, #0x3
+  748538: a0c4         	adr	r0, #784 <_ZN7GuiData20_splitAddChatMessageERSt6vectorI10GuiMessageSaIS1_EERS1_+0xbc>
+  74853a: 00f3         	lsls	r3, r6, #0x3
+  74853c: a0b0         	adr	r0, #704 <_ZN7GuiData20_splitAddChatMessageERSt6vectorI10GuiMessageSaIS1_EERS1_+0xac>
+  74853e: 00f3         	lsls	r3, r6, #0x3
+  748540: a09e         	adr	r0, #632 <_ZN7GuiData20_splitAddChatMessageERSt6vectorI10GuiMessageSaIS1_EERS1_+0x9e>
+  748542: 00f3         	lsls	r3, r6, #0x3

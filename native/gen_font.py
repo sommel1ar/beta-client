@@ -1,7 +1,7 @@
 import struct
 from PIL import Image, ImageFont, ImageDraw
 
-FONT = r"C:\modulo\controle\panda-teardown\app-src\resources\res\font\jetbrains_mono_bold.ttf"
+FONT = r"C:\modulo\minecraft\_launcher\native\fonts\SpaceGrotesk-Medium.ttf"
 OUT_H = r"C:\modulo\minecraft\_launcher\native\jni\font_blob.h"
 BAKE = 48
 FIRST_CP = 32
