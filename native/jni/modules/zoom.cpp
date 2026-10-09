@@ -17,6 +17,7 @@ extern "C" void vc_zoom_config(int on, float mult, int smooth, int toggle);
 struct Zoom : VoidModule {
     Zoom() {
         id             = "zoom";
+        icon           = ICON_ZOOM;
         name           = "Zoom";
         category       = CAT_VISUAL;
         description    = "Segure o botao Z pra aproximar (reduz o FOV)";

@@ -39,8 +39,9 @@ static void my_travel(void* self, float a, float b) {
 struct AutoSprint : VoidModule {
     AutoSprint() {
         id             = "auto_sprint";
+        icon           = ICON_SPRINT;
         name           = "Auto Sprint";
-        category       = CAT_GAMEPLAY;
+        category       = CAT_UTILITY;
         description    = "Sprinta ao andar pra frente (estilo Java, instantaneo)";
         defaultEnabled = false;
         addInfo("1 input pra frente = sprint na hora (sem toque duplo). Para ao parar de andar.");

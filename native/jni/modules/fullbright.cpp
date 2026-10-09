@@ -9,6 +9,7 @@ struct Fullbright : VoidModule {
 
     Fullbright() {
         id          = "fullbright";
+        icon        = ICON_SUN;
         name        = "Fullbright";
         category    = CAT_VISUAL;
         description = "Enxergar no escuro";

@@ -19,6 +19,7 @@ extern "C" void vc_mb_config(int on, int frames, float alpha, float bleed, int d
 struct MotionBlur : VoidModule {
     MotionBlur() {
         id             = "motion_blur";
+        icon           = ICON_MOTION;
         name           = "Motion Blur";
         category       = CAT_VISUAL;
         description    = "Suaviza o movimento acumulando os quadros anteriores";

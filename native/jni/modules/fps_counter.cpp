@@ -6,7 +6,8 @@
 struct FpsCounter : VoidModule {
     FpsCounter() {
         id             = "fps_counter";          // unico e estavel (chave do config)
-        name           = "Contador de FPS";
+        icon           = ICON_FPS;
+        name           = "FPS";
         category       = CAT_HUD;
         description    = "Mostra o FPS atual";
         defaultEnabled = true;
@@ -15,7 +16,7 @@ struct FpsCounter : VoidModule {
         addHeader("Aparencia");
         addToggle("fundo", "Fundo",   true);
         addSlider("tam",   "Tamanho", 28.0f, 16.0f, 48.0f);
-        addColor ("cor",   "Cor",     0xFF7A3CFFu);
+        addColor ("cor",   "Cor",     0xFFFFFFFFu);
         addInfo("Arraste no modo Editar HUD. Suavizado a cada 0.5s.");
     }
 

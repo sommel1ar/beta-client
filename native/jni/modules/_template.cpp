@@ -29,7 +29,7 @@ struct MeuModulo : VoidModule {
     MeuModulo() {
         id             = "meu_modulo";          // OBRIGATORIO: unico e estavel
         name           = "Meu Modulo";          // nome no card
-        category       = CAT_GAMEPLAY;          // CAT_HUD / CAT_VISUAL / CAT_GAMEPLAY / CAT_COSMETIC / CAT_PROFILE
+        category       = CAT_UTILITY;           // CAT_HUD / CAT_COMBAT / CAT_VISUAL / CAT_PLAYER / CAT_WORLD / CAT_UTILITY / CAT_MISC
         description    = "Descreva a feature";
         defaultEnabled = false;
 

@@ -8,15 +8,15 @@ extern "C" void vc_ball_config(int on, float size, unsigned color);
 struct CursorSize : VoidModule {
     CursorSize() {
         id             = "cursor_size";
-        name           = "Bola";
+        icon           = ICON_BALL;
+        name           = "DPI";
         category       = CAT_VISUAL;
-        description    = "Tamanho da bola de toque (0 = invisivel). So a bola, nao mexe na GUI.";
+        description    = "Tamanho do ponto de toque/cursor (DPI). 0 = invisivel; nao mexe na GUI.";
         defaultEnabled = false;
-        addSlider("tam", "Tamanho", 1.0f, 0.0f, 3.0f);
-        addColor ("cor", "Cor",     0xFFB8A8FFu);
-        addInfo("0 = invisivel ; 1 = normal ; maior = maior. Muda ao vivo no mundo.");
+        addSlider("dpi", "Tamanho", 40.0f, 0.0f, 100.0f);
+        addInfo("0% = invisivel ; 40% = nativo ; 100% = 2,5x. Anel NATIVO do jogo, escalado ao vivo.");
     }
-    void apply() { vc_ball_config(enabled ? 1 : 0, getSlider("tam"), getColor("cor")); }
+    void apply() { vc_ball_config(enabled ? 1 : 0, getSlider("dpi") / 40.0f, 0u); }
     void onEnable()  override { apply(); }
     void onDisable() override { vc_ball_config(0, 0.0f, 0u); }
     void onSettingChanged(const char*) override { apply(); }

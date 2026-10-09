@@ -29,6 +29,7 @@ struct CpsCounter : VoidModule {
 
     CpsCounter() {
         id             = "cps_counter";
+        icon           = ICON_CPS;
         name           = "CPS";
         category       = CAT_HUD;
         description    = "Mostra seus toques por segundo";
@@ -40,7 +41,7 @@ struct CpsCounter : VoidModule {
         addHeader("Aparencia");
         addToggle("fundo", "Fundo",   true);
         addSlider("tam",   "Tamanho", 28.0f, 16.0f, 48.0f);
-        addColor ("cor",   "Cor",     0xFF7A3CFFu);
+        addColor ("cor",   "Cor",     0xFFFFFFFFu);
         addInfo("Conta cada toque na tela durante o jogo (janela de 1s). Arraste no Editar HUD.");
     }
 

@@ -15,12 +15,21 @@
 
 // ----------------------------- Categorias ------------------------------------
 enum VoidCategory {
-    CAT_HUD = 0,        // FPS, coords, keystrokes, ping, relogio, armadura...
-    CAT_VISUAL = 1,     // zoom, fullbright, FOV, crosshair, mira...
-    CAT_GAMEPLAY = 2,   // QoL: toggle sprint/sneak, tweaks de jogabilidade
-    CAT_COSMETIC = 3,   // capas, asas, cosmeticos
-    CAT_PROFILE = 4,    // perfil, nick custom
-    CAT_COUNT = 5
+    CAT_HUD = 0,        // FPS, CPS, coords, keystrokes, relogio, armadura...
+    CAT_COMBAT = 1,     // reach, hitbox, aim, KB...
+    CAT_VISUAL = 2,     // zoom, fullbright, motion blur, FOV, crosshair...
+    CAT_PLAYER = 3,     // skin, perfil, nick, movimento
+    CAT_WORLD = 4,      // tempo/clima client-side, fog, block outline
+    CAT_UTILITY = 5,    // QoL: auto sprint, bola/cursor, atalhos
+    CAT_MISC = 6,       // diversos
+    CAT_COUNT = 7
+};
+
+// indices de icone no atlas (ver native/gen_icons.py). Use no campo `icon` do modulo.
+enum VoidIcon {
+    ICON_NONE = -1,
+    ICON_ZOOM = 4, ICON_FPS = 5, ICON_CPS = 6, ICON_BALL = 7,
+    ICON_SUN = 8, ICON_MOTION = 9, ICON_SPRINT = 10
 };
 
 // ----------------------------- Settings --------------------------------------
@@ -72,6 +81,7 @@ public:
     bool        defaultEnabled = false;   // ligado por padrao?
     float       x = 0.02f, y = 0.03f;      // posicao do HUD: FRACAO (0..1) da tela; arrastavel no modo "Editar HUD"
     float       scale = 1.0f;              // escala do HUD (modo Redimensionar); multiplique seus tamanhos por g.hudScale()
+    int         icon = ICON_NONE;          // indice no atlas de icones (gen_icons.py); -1 = usa a 1a letra do nome
 
     // --- estado (gerenciado pelo framework) ---
     bool enabled = false;                 // ligado agora? (persistido)
