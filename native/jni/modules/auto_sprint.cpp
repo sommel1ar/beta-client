@@ -42,9 +42,9 @@ struct AutoSprint : VoidModule {
         icon           = ICON_SPRINT;
         name           = "Auto Sprint";
         category       = CAT_UTILITY;
-        description    = "Sprinta ao andar pra frente (estilo Java, instantaneo)";
+        description    = "Sprints when walking forward (Java-style, instant)";
         defaultEnabled = false;
-        addInfo("1 input pra frente = sprint na hora (sem toque duplo). Para ao parar de andar.");
+        addInfo("1 forward input = instant sprint (no double-tap). Stops when you stop walking.");
     }
     void onEnable() override {
         g_as_on = 1;

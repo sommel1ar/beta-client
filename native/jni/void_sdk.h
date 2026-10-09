@@ -29,7 +29,7 @@ enum VoidCategory {
 enum VoidIcon {
     ICON_NONE = -1,
     ICON_ZOOM = 4, ICON_FPS = 5, ICON_CPS = 6, ICON_BALL = 7,
-    ICON_SUN = 8, ICON_MOTION = 9, ICON_SPRINT = 10
+    ICON_SUN = 8, ICON_MOTION = 9, ICON_SPRINT = 10, ICON_EYE = 14
 };
 
 // ----------------------------- Settings --------------------------------------

@@ -32,17 +32,17 @@ struct CpsCounter : VoidModule {
         icon           = ICON_CPS;
         name           = "CPS";
         category       = CAT_HUD;
-        description    = "Mostra seus toques por segundo";
+        description    = "Shows your taps per second";
         defaultEnabled = false;
         for (int i = 0; i < CAP; i++) times[i] = 0;
         head = 0;
 
         x = 0.02f; y = 0.10f;                  // posicao-padrao (fracao, abaixo do FPS); arrastavel no "Editar HUD"
-        addHeader("Aparencia");
-        addToggle("fundo", "Fundo",   true);
-        addSlider("tam",   "Tamanho", 28.0f, 16.0f, 48.0f);
-        addColor ("cor",   "Cor",     0xFFFFFFFFu);
-        addInfo("Conta cada toque na tela durante o jogo (janela de 1s). Arraste no Editar HUD.");
+        addHeader("Appearance");
+        addToggle("fundo", "Background", true);
+        addSlider("tam",   "Size", 28.0f, 16.0f, 48.0f);
+        addColor ("cor",   "Color", 0xFFFFFFFFu);
+        addInfo("Counts each on-screen tap during gameplay (1s window). Drag in Edit HUD.");
     }
 
     void onClick(int /*button*/) override {

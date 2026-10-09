@@ -9,15 +9,15 @@ struct FpsCounter : VoidModule {
         icon           = ICON_FPS;
         name           = "FPS";
         category       = CAT_HUD;
-        description    = "Mostra o FPS atual";
+        description    = "Shows the current FPS";
         defaultEnabled = true;
 
         x = 0.02f; y = 0.03f;                  // posicao-padrao (fracao); arrastavel no "Editar HUD"
-        addHeader("Aparencia");
-        addToggle("fundo", "Fundo",   true);
-        addSlider("tam",   "Tamanho", 28.0f, 16.0f, 48.0f);
-        addColor ("cor",   "Cor",     0xFFFFFFFFu);
-        addInfo("Arraste no modo Editar HUD. Suavizado a cada 0.5s.");
+        addHeader("Appearance");
+        addToggle("fundo", "Background", true);
+        addSlider("tam",   "Size", 28.0f, 16.0f, 48.0f);
+        addColor ("cor",   "Color", 0xFFFFFFFFu);
+        addInfo("Drag in Edit HUD mode. Smoothed every 0.5s.");
     }
 
     void onRender(VoidCanvas& g) override {

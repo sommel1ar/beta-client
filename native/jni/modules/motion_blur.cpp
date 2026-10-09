@@ -22,15 +22,15 @@ struct MotionBlur : VoidModule {
         icon           = ICON_MOTION;
         name           = "Motion Blur";
         category       = CAT_VISUAL;
-        description    = "Suaviza o movimento acumulando os quadros anteriores";
+        description    = "Smooths motion by accumulating previous frames";
         defaultEnabled = false;
 
-        addHeader("Efeito");
-        static const char* TIPOS[] = { "Suave (media)", "Fantasma (rastro)" };
-        addDropdown("tipo", "Tipo", TIPOS, 2, 0);  // 0 = Suave (sutil), 1 = Fantasma (rastro)
-        addInt("frames", "Intensidade (quadros)", 3, 1, 6);
-        addToggle("dinamico", "Dinamico", true);
-        addInfo("Over-blend dos ultimos N quadros (metodo do Flarial): cena nitida + ecos fracos. Dinamico so corta em stutter (<45fps).");
+        addHeader("Effect");
+        static const char* TIPOS[] = { "Smooth (average)", "Ghost (trail)" };
+        addDropdown("tipo", "Type", TIPOS, 2, 0);  // 0 = Smooth (subtle), 1 = Ghost (trail)
+        addInt("frames", "Intensity (frames)", 3, 1, 6);
+        addToggle("dinamico", "Dynamic", true);
+        addInfo("Over-blends the last N frames (Flarial's method): sharp scene + faint echoes. Dynamic only kicks in on stutter (<45fps).");
     }
 
     void apply() {

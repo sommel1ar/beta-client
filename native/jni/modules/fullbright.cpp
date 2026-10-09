@@ -12,8 +12,8 @@ struct Fullbright : VoidModule {
         icon        = ICON_SUN;
         name        = "Fullbright";
         category    = CAT_VISUAL;
-        description = "Enxergar no escuro";
-        addSlider("gamma", "Intensidade", 1500.0f, 100.0f, 3000.0f);
+        description = "See in the dark";
+        addSlider("gamma", "Intensity", 1500.0f, 100.0f, 3000.0f);
     }
 
     float* gammaPtr() {

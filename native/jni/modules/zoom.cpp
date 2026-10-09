@@ -20,15 +20,15 @@ struct Zoom : VoidModule {
         icon           = ICON_ZOOM;
         name           = "Zoom";
         category       = CAT_VISUAL;
-        description    = "Segure o botao Z pra aproximar (reduz o FOV)";
+        description    = "Hold the Z button to zoom in (reduces FOV)";
         defaultEnabled = false;
 
         addHeader("Zoom");
-        addSlider("nivel", "Nivel (x)", 3.0f, 2.0f, 8.0f);
-        addToggle("suave", "Suave", true);
-        static const char* MODOS[] = { "Segurar", "Alternar" };  // Alternar = tap liga/desliga (dedos livres p/ olhar)
-        addDropdown("modo", "Modo", MODOS, 2, 0);
-        addInfo("Botao Z no jogo. Segurar = so enquanto segura. Alternar = tap liga/desliga (da pra mover/olhar).");
+        addSlider("nivel", "Level (x)", 3.0f, 2.0f, 8.0f);
+        addToggle("suave", "Smooth", true);
+        static const char* MODOS[] = { "Hold", "Toggle" };  // Toggle = tap on/off (free fingers to look around)
+        addDropdown("modo", "Mode", MODOS, 2, 0);
+        addInfo("Z button in game. Hold = only while held. Toggle = tap on/off (you can move/look).");
     }
 
     void apply() {

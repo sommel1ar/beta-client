@@ -11,10 +11,10 @@ struct CursorSize : VoidModule {
         icon           = ICON_BALL;
         name           = "DPI";
         category       = CAT_VISUAL;
-        description    = "Tamanho do ponto de toque/cursor (DPI). 0 = invisivel; nao mexe na GUI.";
+        description    = "Touch point / cursor ring size (DPI). 0 = invisible; doesn't touch the GUI.";
         defaultEnabled = false;
-        addSlider("dpi", "Tamanho", 40.0f, 0.0f, 100.0f);
-        addInfo("0% = invisivel ; 40% = nativo ; 100% = 2,5x. Anel NATIVO do jogo, escalado ao vivo.");
+        addSlider("dpi", "Size", 40.0f, 0.0f, 100.0f);
+        addInfo("0% = invisible ; 40% = native ; 100% = 2.5x. The game's NATIVE ring, scaled live.");
     }
     void apply() { vc_ball_config(enabled ? 1 : 0, getSlider("dpi") / 40.0f, 0u); }
     void onEnable()  override { apply(); }

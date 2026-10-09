@@ -111,6 +111,7 @@ ICONS = [
     ("mag", mag), ("gauge", gauge), ("hand", 0xF25A), ("bullseye", bullseye),
     ("sun", sun), ("motion", motion), ("running", 0xF70C), ("monitor", monitor),
     ("chevdown", chevdown), ("chevright", chevright),
+    ("eye", 0xF06E),
 ]
 
 cells = []

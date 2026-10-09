@@ -166,6 +166,9 @@ static int g_zoomOn = 0, g_zoomSmooth = 1, g_zoomHeld = 0, g_zoomPid = -1, g_zoo
 static float g_zoomMult = 3.0f, g_zoomUserFov = 0.0f, g_zoomCur = 0.0f;
 static float g_zbx = -1.0f, g_zby = -1.0f;   // centro do botao Z: FRACAO (0..1); <0 = posicao-padrao
 #define ZB_R 44.0f
+// perspectiva (botao in-game cicla a visao 1a/3a, tipo F5; controlado pelo modulo perspective)
+static int g_perspOn = 0, g_perspPid = -1, g_perspReq = 0, g_perspSkip = 0;
+static float g_pbx = -1.0f, g_pby = -1.0f;   // centro do botao de perspectiva: FRACAO (0..1); <0 = padrao
 // HUD arrastavel: origem do modulo atual + medicao de bbox + modo editar + arraste
 static float g_hudOX = 0.0f, g_hudOY = 0.0f;
 static int   g_hudMeasuring = 0;
@@ -220,6 +223,7 @@ static VcIcons g_iconInfo;
 #define IC_GLOBE 1
 #define IC_DOOR 2
 #define IC_DISC 3
+#define IC_EYE 14
 
 static const char* VS =
     "attribute vec2 aPos; attribute vec2 aUV; attribute vec4 aColor;"
@@ -636,6 +640,7 @@ static int g_modCat = 0;
 static int g_catCollapsed[CAT_COUNT] = { 0 };   // secoes colapsadas no painel in-game (persistido)
 static int g_catAnimT0[CAT_COUNT] = { 0 };      // timestamp do ultimo colapsar/expandir (accordion)
 static int g_modExpanded[64] = { 0 };           // card expandido (config inline)
+static int g_modExpT0[64] = { 0 };              // timestamp do ultimo expandir/recolher (animacao)
 static int g_setDragMod = -1, g_setDragSet = -1, g_setDragPid = -1; static float g_setDragTX = 0.0f, g_setDragTW = 1.0f;  // arraste de slider inline
 struct SetHit { int mod, set, kind; float x, y, w, h, tx, tw; };   // kind: 1=slider 2=toggle 3=color
 static SetHit g_setR[96]; static int g_nSetR = 0;   // zonas de toque das settings (gravadas no render)
@@ -736,6 +741,8 @@ static void vc_modules_save() {
     }
     if (g_zbx >= 0.0f) fprintf(f, "_zoombtn.x=%g\n", g_zbx);   // posicao do botao Z (fracao do centro)
     if (g_zby >= 0.0f) fprintf(f, "_zoombtn.y=%g\n", g_zby);
+    if (g_pbx >= 0.0f) fprintf(f, "_perspbtn.x=%g\n", g_pbx);   // posicao do botao de perspectiva
+    if (g_pby >= 0.0f) fprintf(f, "_perspbtn.y=%g\n", g_pby);
     { unsigned cmask = 0; for (int c = 0; c < CAT_COUNT; c++) if (g_catCollapsed[c]) cmask |= (1u << c);
       fprintf(f, "_collapsed.mask=%u\n", cmask); }                                      // secoes colapsadas
     fclose(f);
@@ -752,6 +759,7 @@ static void vc_modules_load() {
         const char* mid = line; const char* key = dot + 1; char* val = eq + 1;
         for (char* p = val; *p; p++) { if (*p == '\n' || *p == '\r') { *p = 0; break; } }
         if (!strcmp(mid, "_zoombtn")) { if (!strcmp(key, "x")) g_zbx = (float)atof(val); else if (!strcmp(key, "y")) g_zby = (float)atof(val); continue; }
+        if (!strcmp(mid, "_perspbtn")) { if (!strcmp(key, "x")) g_pbx = (float)atof(val); else if (!strcmp(key, "y")) g_pby = (float)atof(val); continue; }
         if (!strcmp(mid, "_collapsed")) { if (!strcmp(key, "mask")) { unsigned cm = (unsigned)strtoul(val, nullptr, 10); for (int c = 0; c < CAT_COUNT; c++) g_catCollapsed[c] = (int)((cm >> c) & 1u); } continue; }
         for (int i = 0; i < g_moduleCount; i++) {
             VoidModule* m = g_modules[i];
@@ -1248,6 +1256,15 @@ extern "C" void vc_zoom_config(int on, float mult, int smooth, int toggle) {
     g_zoomOn = on; g_zoomMult = mult; g_zoomSmooth = smooth; g_zoomToggle = toggle;
     if (!on) g_zoomHeld = 0;   // a animacao de volta ao FOV do usuario termina sozinha em vc_zoom_apply
 }
+// perspectiva: botao fixo (abaixo do Z). Cada toque cicla a visao (o ciclo = _toggleThirdPersonView, o F5 nativo).
+static float vc_persp_bx() { return (g_pbx < 0.0f) ? ((float)g_lastW - ZB_R - 30.0f) : (g_pbx * (float)g_lastW); }
+static float vc_persp_by() { return (g_pby < 0.0f) ? ((float)g_lastH * 0.76f) : (g_pby * (float)g_lastH); }
+static int vc_persp_hit(float vx, float vy) {
+    if (!g_perspOn) return 0;
+    float dx = vx - vc_persp_bx(), dy = vy - vc_persp_by();
+    return (dx * dx + dy * dy <= ZB_R * ZB_R) ? 1 : 0;
+}
+extern "C" void vc_persp_config(int on, int skip) { g_perspOn = on; g_perspSkip = skip; if (!on) { g_perspPid = -1; g_perspReq = 0; } }
 
 static void overlay_frame(int W, int H) {
     g_pixelH = H;
@@ -2401,6 +2418,12 @@ static int hitTestEditWorld(float x, float y) {
 static void my_update(void* mc) {
     g_mc = mc;
     vc_modules_tick(mc);
+    if (g_perspReq) {                                                   // perspectiva: cicla a visao
+        if (g_perspSkip) { void* po = *(void**)((char*)mc + 0x13c);     // pular a 3a costas: so 1a<->3a frontal (opts+0x90)
+                           if (po) { int* pp = (int*)((char*)po + 0x90); *pp = (*pp == 0) ? 2 : 0; } }
+        else ((void(*)(void*))VC_CALL(0x6c210cu))(mc);                  // ciclo nativo completo (F5: 1a->3a->frontal)
+        g_perspReq = 0;
+    }
     int own = onMenu(mc) || onPauseScreen(mc);
     { int isM = onMenu(mc); if (isM && !g_wasMenu) g_menuT0 = vc_now_ms(); g_wasMenu = isM; }
     g_uiAtiva = own;
@@ -2756,7 +2779,11 @@ static float vc_cat_open(int c) {   // 0 = fechada, 1 = aberta (accordion animad
 static int vc_set_shown(int t) { return t == VS_SLIDER || t == VS_TOGGLE || t == VS_COLOR; }
 static int vc_mod_nset(VoidModule* m) { int n = 0; for (int j = 0; j < m->settingCount; j++) if (vc_set_shown(m->settings[j].type)) n++; return n; }
 static float vc_mod_settings_h(VoidModule* m) { int n = vc_mod_nset(m); return n > 0 ? (float)n * IG_SET_RH + 16.0f : 0.0f; }
-static float vc_mod_card_h(int i) { return IG_RH + (g_modExpanded[i] ? vc_mod_settings_h(g_modules[i]) : 0.0f); }
+static float vc_mod_expand(int i) {   // 0 = recolhido, 1 = expandido (animado, igual ao accordion das categorias)
+    float e = vc_smooth((float)(vc_now_ms() - g_modExpT0[i]) / 220.0f);
+    return g_modExpanded[i] ? e : (1.0f - e);
+}
+static float vc_mod_card_h(int i) { return IG_RH + vc_mod_settings_h(g_modules[i]) * vc_mod_expand(i); }
 static float vc_cat_cards_h(int c) { float t = 0.0f; for (int i = 0; i < g_moduleCount; i++) if (g_modules[i]->category == c) t += vc_mod_card_h(i); return t; }
 static float vc_ig_content_h() {   // altura total: headers + body animada (cards + settings expandidas)
     float y = 0.0f;
@@ -2818,7 +2845,7 @@ static void vc_ig_item(int r) {
     if (r == 32) { return; }                                                          // lupa: busca (TODO)
     if (r == 33) { g_igMenu = 0; g_igMenuT0 = vc_now_ms(); return; }                   // porta -> fechar
     if (r >= 200 && r < 200 + CAT_COUNT) { int c = r - 200; g_catCollapsed[c] = !g_catCollapsed[c]; g_catAnimT0[c] = vc_now_ms(); vc_modules_save(); return; }  // colapsa/expande (anima)
-    if (r >= 400 && r < 400 + g_moduleCount) { int i = r - 400; g_modExpanded[i] = !g_modExpanded[i]; return; }  // expande/recolhe config do card
+    if (r >= 400 && r < 400 + g_moduleCount) { int i = r - 400; g_modExpanded[i] = !g_modExpanded[i]; g_modExpT0[i] = vc_now_ms(); return; }  // expande/recolhe config do card (anima)
     if (r >= 10 && r < 10 + g_moduleCount) vc_mod_set_enabled(g_modules[r - 10], !g_modules[r - 10]->enabled);
 }
 // snap de 1 eixo: tenta grudar a borda esq/centro/dir (ou topo/meio/base) do elemento
@@ -2875,6 +2902,11 @@ static void vc_draw_ingame_buttons() {
         draw_icon(IC_DISC, bx - ZB_R, by - ZB_R, 2.0f * ZB_R, g_zoomHeld ? 0xF07A3CFFu : 0xC01B1B26u);
         draw_text_c(bx, by + 12.0f, "Z", 40.0f, 0xFFF2F2FFu);
     }
+    if (g_perspOn) {
+        float bx = vc_persp_bx(), by = vc_persp_by();
+        draw_icon(IC_DISC, bx - ZB_R, by - ZB_R, 2.0f * ZB_R, g_perspPid >= 0 ? 0xF07A3CFFu : 0xC01B1B26u);
+        draw_icon(IC_EYE,  bx - ZB_R * 0.62f, by - ZB_R * 0.62f, ZB_R * 1.24f, 0xFFF2F2FFu);
+    }
     // FUTUROS BOTOES: desenhar aqui + adicionar em vc_build_edit_targets (ja ficam arrastaveis).
 }
 // monta a lista de elementos editaveis: HUD (ancora top-left) + botoes (ancora centro).
@@ -2893,6 +2925,12 @@ static void vc_build_edit_targets() {
         e.rx = cx - ZB_R; e.ry = cy - ZB_R; e.rw = 2.0f * ZB_R; e.rh = 2.0f * ZB_R;
         e.w = 2.0f * ZB_R; e.h = 2.0f * ZB_R; e.fx = &g_zbx; e.fy = &g_zby; e.fsc = nullptr; e.center = 1; e.name = "Zoom";
     }
+    if (g_perspOn && g_etCount < 80) {
+        EditTarget& e = g_et[g_etCount++];
+        float cx = vc_persp_bx(), cy = vc_persp_by();
+        e.rx = cx - ZB_R; e.ry = cy - ZB_R; e.rw = 2.0f * ZB_R; e.rh = 2.0f * ZB_R;
+        e.w = 2.0f * ZB_R; e.h = 2.0f * ZB_R; e.fx = &g_pbx; e.fy = &g_pby; e.fsc = nullptr; e.center = 1; e.name = "Perspective";
+    }
     // FUTUROS BOTOES: mais um bloco aqui (fx/fy = fracao do CENTRO, center=1).
 }
 static void vc_hud_edit_overlay() {
@@ -2908,7 +2946,7 @@ static void vc_hud_edit_overlay() {
     }
     if (g_dragActive && g_snapLineX >= 0.0f) draw_rect(g_snapLineX - 1.0f, 0.0f, 2.0f, (float)g_lastH, 0xFF4A9EFFu);  // guia azul
     if (g_dragActive && g_snapLineY >= 0.0f) draw_rect(0.0f, g_snapLineY - 1.0f, (float)g_lastW, 2.0f, 0xFF4A9EFFu);
-    const char* lbl[3] = { "Mover", "Resize", "Sair" };                     // 3 botoes top-left (estilo Flarial)
+    const char* lbl[3] = { "Move", "Resize", "Exit" };                      // 3 botoes top-left (estilo Flarial)
     for (int i = 0; i < 3; i++) {
         float bx, by, bw, bh; vc_hud_btn(i, &bx, &by, &bw, &bh);
         unsigned bg = (i == 2) ? 0xFF7A2A2Au : ((i == g_hudMode) ? 0xFF7A3CFFu : 0xFF2A1A4Au);
@@ -2991,7 +3029,11 @@ static void ui_build_ingame(int W, int H) {
                     float spw = pwid * pop, sph = 52.0f * pop;
                     draw_round(cxp - spw * 0.5f, cy - sph * 0.5f, spw, sph, sph * 0.5f, lerp_color(0xFF33303Eu, 0xFF2E7D4Au, tp));
                     draw_text_c(cxp, cy + 10.0f, (tp >= 0.5f) ? "ON" : "OFF", 27.0f, 0xFFF4F4FFu);
-                    if (g_modExpanded[i]) {                   // ----- settings inline -----
+                    float exf = vc_mod_expand(i);
+                    if (exf > 0.002f) {                       // ----- settings inline (reveal animado) -----
+                        float clipSave = g_clipBot;
+                        float exClip = dry + IG_RH + vc_mod_settings_h(m) * exf;   // revela de cima p/ baixo
+                        if (exClip < g_clipBot) g_clipBot = exClip;
                         float sy = dry + IG_RH;
                         for (int j = 0; j < m->settingCount; j++) {
                             VSetting& s = m->settings[j];
@@ -3025,6 +3067,7 @@ static void ui_build_ingame(int W, int H) {
                             }
                             sy += IG_SET_RH;
                         }
+                        g_clipBot = clipSave;
                     }
                 }
                 g_clipTop = ry0; g_clipBot = rowBottom;        // restaura viewport p/ proximo header
@@ -3134,6 +3177,10 @@ static void my_feed(char down, char edge, short x, short y, int pid) {
             else g_zoomHeld = 1;                         /* Segurar */
             return;
         }
+        if (vc_persp_hit(vx, vy)) {                 /* botao de perspectiva: cicla a visao (F5) */
+            g_ourPtrs |= bit; g_perspPid = pid; g_perspReq = 1;
+            return;
+        }
     } else if (g_ourPtrs & bit) {                  /* MOVE/RELEASE do nosso dedo */
         if (pid == g_setDragPid) {                 /* dedo arrastando um slider inline */
             VoidModule* m = g_modules[g_setDragMod]; VSetting& s = m->settings[g_setDragSet];
@@ -3159,6 +3206,10 @@ static void my_feed(char down, char edge, short x, short y, int pid) {
                 g_zoomPid = -1; g_ourPtrs &= ~bit;
             }
             return;                                /* MOVE mantem */
+        }
+        if (pid == g_perspPid) {                   /* dedo do botao de perspectiva (ja ciclou no press) */
+            if (down && !edge) { g_perspPid = -1; g_ourPtrs &= ~bit; }   /* RELEASE */
+            return;
         }
         if (pid == g_dragPid) {                    /* dedo da bolha */
             if (down && !edge) {                   /* RELEASE */
